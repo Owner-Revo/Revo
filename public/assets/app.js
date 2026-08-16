@@ -1,13 +1,66 @@
-const app=document.getElementById('app');let page='home',server=false;
-const items=[['home','⌂','الرئيسية'],['economy','◈','اقتصاد Revo'],['top','♛','Top 100'],['overview','▦','نظرة عامة'],['commands','⌘','Register Commands'],['welcome','✦','الترحيب'],['xp','↗','XP & Levels'],['tickets','▣','Ticket System'],['protection','◇','Protection'],['premium','◆','Premium'],['settings','⚙','الإعدادات']];
-function nav(x){return `<button class="nav ${page==x[0]?'active':''}" onclick="page='${x[0]}';render()">${x[1]}　${x[2]}</button>`}
-function shell(){app.innerHTML=`<aside class="side" id="side"><div class="brand"><span class="logo">R</span>Revo</div><div class="profile"><div class="av">R</div><div><b>Revo Admin</b><div class="muted">Discord</div></div></div><div class="section">MAIN</div>${items.slice(0,3).map(nav).join('')}<div class="section">SERVER</div><select class="select" onchange="server=this.value;render()"><option value="">اختيار السيرفر</option><option value="1">Revo Community</option><option value="2">Revo Store</option></select>${items.slice(3).map(nav).join('')}</aside><main class="main"><header class="top"><button class="btn hamb" onclick="document.getElementById('side').classList.toggle('open')">☰</button><b id="title">الرئيسية</b><div class="av">R</div></header><section class="content" id="view"></section></main>`;render()}
-function head(k,t,d){return `<div class="hero"><span class="eyebrow">${k}</span><h1>${t}</h1><p class="muted">${d}</p></div>`}
-function render(){document.getElementById('title').textContent=(items.find(x=>x[0]==page)||items[0])[2];let locked=['tickets','protection','premium'].includes(page)&&server!=='1';if(locked){document.getElementById('view').innerHTML=head('PREMIUM','🔒 Revo Premium','السيرفر الحالي يحتاج اشتراك Premium لفتح هذه الصفحة.')+'<div class="lock"><b>Premium Required</b><p class="muted">افتح Ticket System وProtection وجميع مميزات Premium.</p></div>';return}({home,economy,top,overview,commands,welcome,xp,tickets,protection,premium,settings}[page]||home)()}
-function home(){document.getElementById('view').innerHTML=head('REVO DASHBOARD','أهلًا بك في Revo 👋','لوحة تحكم كاملة للاقتصاد والسيرفرات والأنظمة.')+`<div class="stats"><div class="card stat"><small>رصيد Revo</small><b>157,895</b></div><div class="card stat"><small>Daily</small><b>5,000</b></div><div class="card stat"><small>Top Rank</small><b>#12</b></div><div class="card stat"><small>Bot</small><b class="green">ONLINE</b></div></div><div class="grid"><div class="card"><div class="head"><h3>نشاط Revo</h3><span class="pill">30 Days</span></div><div style="height:170px;display:flex;align-items:end;gap:8px;padding-top:20px">${[40,65,55,80,60,92,70,98,65,80,90,72].map(h=>`<i style="height:${h}%;flex:1;border-radius:7px 7px 2px 2px;background:linear-gradient(#745cff,#4035a8)"></i>`).join('')}</div></div><div class="card"><div class="head"><h3>آخر التحويلات</h3><span class="pill">عرض الكل</span></div>${['Youssef → Ahmed','Mohamed → Khaled','Revo Store → Youssef'].map((x,i)=>`<div class="row"><div class="grow">${x}<div class="muted">منذ ${i+2} دقيقة</div></div><b>+${(i+1)*2500} R</b></div>`).join('')}</div></div>`}
-function economy(){document.getElementById('view').innerHTML=head('REVO ECONOMY','اقتصاد Revo','الرصيد وDaily والتحويلات في مكان واحد.')+`<div class="stats"><div class="card stat"><small>رصيدك</small><b>157,895</b></div><div class="card stat"><small>Daily</small><b>5,000</b></div><div class="card stat"><small>الوارد</small><b>94,200</b></div><div class="card stat"><small>الصادر</small><b>31,450</b></div></div><div class="card"><h3>سجل التحويلات</h3>${['+25,000 Revo','-10,000 Revo','+5,500 Revo','-2,000 Revo'].map(x=>`<div class="row"><div class="grow">عملية تحويل</div><b>${x}</b></div>`).join('')}</div>`}
-function top(){document.getElementById('view').innerHTML=head('TOP 100','أغنى أعضاء Revo','ترتيب الأعضاء حسب الرصيد.')+'<div class="card">'+['Youssef','Ahmed','Mohamed','Khaled','Omar'].map((x,i)=>`<div class="row"><b>#${i+1}</b><div class="av">${x[0]}</div><div class="grow">${x}</div><b>${425800-i*38700} R</b></div>`).join('')+'</div>'}
-function overview(){document.getElementById('view').innerHTML=head('SERVER OVERVIEW',server?'Revo Community':'اختار سيرفر','نظرة عامة على حالة الأنظمة.')+'<div class="stats"><div class="card stat"><small>Premium</small><b class="green">ACTIVE</b></div><div class="card stat"><small>Prefix</small><b>?</b></div><div class="card stat"><small>Members</small><b>12.8K</b></div><div class="card stat"><small>Systems</small><b>18</b></div></div><div class="card"><h3>حالة الأنظمة</h3>'+['Welcome','XP & Levels','Protection','Tickets','Economy'].map(x=>`<div class="row"><div class="grow">${x}</div><span class="green">● Enabled</span></div>`).join('')+'</div>'}
-function generic(title,key){document.getElementById('view').innerHTML=head(key,title,'إعداد كامل للنظام من لوحة Revo.')+'<div class="card"><h3>الإعدادات</h3>'+['تفعيل النظام','الروم','الرسالة','الرتب','الصلاحيات','السجلات'].map((x,i)=>`<div class="row"><div class="grow">${x}</div><button class="btn">${i?'تعديل':'مفعل'}</button></div>`).join('')+'</div>'}
-function commands(){generic('Register Commands','COMMANDS')}function welcome(){generic('نظام الترحيب','WELCOME')}function xp(){generic('XP & Levels','XP SYSTEM')}function tickets(){generic('Ticket System','PREMIUM TICKETS')}function protection(){generic('Protection','PREMIUM PROTECTION')}function premium(){generic('Premium Center','PREMIUM')}function settings(){generic('إعدادات السيرفر','SETTINGS')}
+const app=document.getElementById("app");
+let page="home",selectedGuild="",mobile=false;
+const items=[
+["home","⌂","الرئيسية","main"],["economy","◈","اقتصاد Revo","main"],["top","♛","Top 100","main"],
+["overview","▦","نظرة عامة","server"],["commands","⌘","Register Commands","server"],["welcome","✦","الترحيب","server"],
+["xp","↗","XP & Levels","server"],["tickets","▣","Ticket System","premium"],["protection","◇","Protection","premium"],
+["premium","◆","Premium Center","premium"],["settings","⚙","الإعدادات","server"]
+];
+const premiumPages=["tickets","protection","premium"];
+const titles=Object.fromEntries(items.map(x=>[x[0],x[2]]));
+
+function nav(x){return `<button class="nav ${page===x[0]?"active":""}" onclick="go('${x[0]}')"><span class="nav-icon">${x[1]}</span><span>${x[2]}</span>${x[3]==="premium"?"<span style='margin-right:auto;color:#a88cff'>◆</span>":""}</button>`}
+function shell(){
+app.innerHTML=`<div class="mobile-overlay" id="overlay" onclick="toggleSide()"></div>
+<aside class="sidebar" id="sidebar">
+<div class="brand"><span class="brand-logo">R</span><span>Revo<small>CONTROL CENTER</small></span></div>
+<div class="profile"><div class="avatar">Y</div><div><b>Revo Admin</b><div class="tiny muted">Discord Account</div></div></div>
+<div class="section">MAIN</div>${items.filter(x=>x[3]==="main").map(nav).join("")}
+<div class="section">SERVER</div>
+<select class="server-select" onchange="selectedGuild=this.value;render()"><option value="">اختيار السيرفر</option><option value="revo">Revo Community</option><option value="store">Revo Store</option></select>
+${items.filter(x=>x[3]!=="main").map(nav).join("")}
+<div class="section">ACCOUNT</div><button class="nav" onclick="toast('تسجيل الخروج سيتم ربطه مع Discord OAuth')">↪ <span>تسجيل الخروج</span></button>
+</aside>
+<main class="main"><header class="topbar"><div class="top-left"><button class="btn mobile-btn" onclick="toggleSide()">☰</button><span class="page-title" id="pageTitle">الرئيسية</span></div><div class="avatar">R</div></header><section class="content" id="view"></section></main>`;
+render();
+}
+function toggleSide(){document.getElementById("sidebar").classList.toggle("open");document.getElementById("overlay").classList.toggle("show")}
+function go(p){page=p;toggleSideIfMobile();render()}
+function toggleSideIfMobile(){if(window.innerWidth<=1000){document.getElementById("sidebar").classList.remove("open");document.getElementById("overlay").classList.remove("show")}}
+function head(code,title,desc,actions=""){return `<div class="hero"><div class="eyebrow">${code}</div><h1>${title}</h1><p class="muted">${desc}</p>${actions?`<div class="hero-actions">${actions}</div>`:""}</div>`}
+function serverRequired(){return !selectedGuild?`<div class="card empty"><h3>اختار سيرفر أولًا</h3><p>اختار السيرفر من القائمة الجانبية لعرض إعداداته.</p></div>`:""}
+function premiumLock(){return head("PREMIUM","🔒 Revo Premium","هذه الصفحة متاحة فقط للسيرفرات التي لديها اشتراك Premium.")+`<div class="locked"><div><b>Premium Required</b><div class="tiny muted">فعّل Premium لفتح جميع أدوات الحماية والتكتات ومميزات البوت.</div></div><button class="btn primary" onclick="go('premium')">عرض Premium</button></div>`}
+function render(){
+document.getElementById("pageTitle").textContent=titles[page]||"Dashboard";
+if(premiumPages.includes(page)&&selectedGuild!=="revo"){document.getElementById("view").innerHTML=premiumLock();return}
+({home,economy,top,overview,commands,welcome,xp,tickets,protection,premium,settings}[page]||home)();
+}
+function home(){
+document.getElementById("view").innerHTML=head("REVO DASHBOARD","أهلًا بك في لوحة تحكم Revo 👋","تحكم في اقتصاد Revo، السيرفرات، الأنظمة، Premium، وسجلات البوت من مكان واحد.",`<button class="btn primary" onclick="go('economy')">فتح الاقتصاد</button><button class="btn" onclick="go('overview')">إدارة السيرفر</button>`)
++`<div class="stats"><div class="card stat"><small>رصيد Revo</small><strong>157,895</strong></div><div class="card stat"><small>Daily</small><strong>5,000</strong></div><div class="card stat"><small>Top Rank</small><strong>#12</strong></div><div class="card stat"><small>Bot Status</small><strong class="green">● ONLINE</strong></div></div>
+<div class="grid"><div class="card"><div class="card-head"><h3>نشاط Revo</h3><span class="pill">آخر 30 يوم</span></div><div class="chart">${[38,54,47,76,60,88,66,96,58,78,90,70,84].map(h=>`<i class="bar" style="height:${h}%"></i>`).join("")}</div></div>
+<div class="card"><div class="card-head"><h3>آخر التحويلات</h3><button class="btn" onclick="go('economy')">عرض الكل</button></div>${["Youssef → Ahmed","Mohamed → Khaled","Revo Store → Youssef","Omar → Youssef"].map((x,i)=>`<div class="row"><div class="grow"><b>${x}</b><div class="tiny muted">منذ ${i+2} دقيقة</div></div><b class="green">+${(i+1)*2500} R</b></div>`).join("")}</div></div>
+<div class="card"><div class="card-head"><h3>الوصول السريع</h3><span class="pill premium">REVO</span></div><div class="feature-grid">${[["Daily","استلم هديتك اليومية"],["Top 100","شاهد ترتيب الأعضاء"],["XP","إدارة نظام المستويات"],["Tickets","نظام التكتات"],["Protection","حماية السيرفر"],["Premium","إدارة الاشتراك"]].map(x=>`<div class="feature" onclick="go('${x[0]==="Daily"?"economy":x[0].toLowerCase()}')"><h4>${x[0]}</h4><p>${x[1]}</p></div>`).join("")}</div></div>`;
+}
+function economy(){
+document.getElementById("view").innerHTML=head("REVO ECONOMY","اقتصاد Revo","الرصيد، Daily، التحويلات، وسجل العمليات.")
++`<div class="stats"><div class="card stat"><small>رصيدك</small><strong>157,895</strong></div><div class="card stat"><small>Daily</small><strong>5,000</strong></div><div class="card stat"><small>الوارد</small><strong>94,200</strong></div><div class="card stat"><small>الصادر</small><strong>31,450</strong></div></div>
+<div class="card"><div class="card-head"><h3>سجل التحويلات</h3><button class="btn" onclick="toast('تم تحديث السجل')">تحديث</button></div><div class="table-wrap"><table class="table"><thead><tr><th>العملية</th><th>المبلغ</th><th>الوقت</th><th>الحالة</th></tr></thead><tbody>${["+25,000","-10,000","+5,500","-2,000","+12,000"].map((x,i)=>`<tr><td>تحويل Revo</td><td class="${x[0]=="+"?"green":"red"}">${x} R</td><td>اليوم 14:${20+i}</td><td><span class="pill">مكتملة</span></td></tr>`).join("")}</tbody></table></div></div>`;
+}
+function top(){
+document.getElementById("view").innerHTML=head("TOP 100","أغنى أعضاء Revo","ترتيب الأعضاء حسب الرصيد.")+`<div class="card"><div class="card-head"><h3>Leaderboard</h3><span class="pill">100 عضو</span></div>${["Youssef","Ahmed","Mohamed","Khaled","Omar","Mostafa","Ali"].map((x,i)=>`<div class="row"><b style="width:28px">#${i+1}</b><div class="avatar">${x[0]}</div><div class="grow"><b>${x}</b><div class="tiny muted">Member</div></div><b>${425800-i*38700} R</b></div>`).join("")}</div>`;
+}
+function overview(){
+document.getElementById("view").innerHTML=head("SERVER OVERVIEW",selectedGuild?"Revo Community":"اختار سيرفر","نظرة عامة على حالة البوت وأنظمة السيرفر.",`<button class="btn primary" onclick="toast('تم تحديث البيانات')">تحديث البيانات</button>`)+serverRequired()+(selectedGuild?`<div class="stats"><div class="card stat"><small>Premium</small><strong class="green">ACTIVE</strong></div><div class="card stat"><small>Prefix</small><strong>?</strong></div><div class="card stat"><small>Members</small><strong>12.8K</strong></div><div class="card stat"><small>Systems</small><strong>18</strong></div></div><div class="card"><div class="card-head"><h3>حالة الأنظمة</h3><span class="pill premium">SERVER DATA</span></div>${["Economy","Welcome","XP & Levels","Protection","Tickets","Functions"].map(x=>`<div class="row"><div class="grow">${x}</div><span class="green">● Enabled</span><button class="btn" onclick="toast('فتح إعدادات ${x}')">إدارة</button></div>`).join("")}</div>`:"");
+}
+function commands(){generic("Register Commands","COMMANDS","تفعيل وإخفاء أوامر السلاش والبريفكس لكل سيرفر.");}
+function welcome(){generic("نظام الترحيب","WELCOME","إعداد الترحيب، الرومات، الرسائل، والرتب.");}
+function xp(){generic("XP & Levels","XP SYSTEM","إدارة XP واللفلات والرتب والـLeaderboard.");}
+function tickets(){generic("Ticket System","PREMIUM TICKETS","نظام تكتات Premium احترافي مع Panels وClaim وTranscript وPoints.");}
+function protection(){generic("Protection","PREMIUM PROTECTION","حماية متقدمة من السبام والبوتات والـRaid وتعديلات السيرفر.");}
+function premium(){document.getElementById("view").innerHTML=head("PREMIUM CENTER","Revo Premium","إدارة مميزات Premium والاشتراك.")+`<div class="premium-banner"><b>Premium Active</b><div class="tiny muted">السيرفر المحدد مشترك في Premium.</div></div><div class="card"><div class="card-head"><h3>Premium Features</h3><span class="pill premium">UNLOCKED</span></div><div class="feature-grid">${["Bot Avatar","Bot Banner","Bot Nickname","Room Emoji","Room Sticker","Auto React","Outline Rooms","Premium Protection","Premium Tickets","Publisher Salary","Advanced Logs","Custom Ticket Prefix"].map(x=>`<div class="feature"><h4>${x}</h4><p>متاح للسيرفر المشترك ويمكن إدارته من لوحة التحكم.</p><button class="btn primary" onclick="toast('تم فتح إعداد ${x}')">إدارة</button></div>`).join("")}</div></div>`;}
+function settings(){generic("إعدادات السيرفر","SETTINGS","الإعدادات العامة، Prefix، Logs، والصلاحيات.");}
+function generic(title,key,desc){
+document.getElementById("view").innerHTML=head(key,title,desc)+serverRequired()+(selectedGuild?`<div class="card"><div class="card-head"><h3>إعدادات النظام</h3><button class="btn primary" onclick="toast('تم حفظ الإعدادات')">حفظ التغييرات</button></div>${["تفعيل النظام","الروم الأساسية","الرسالة","الرتب","الصلاحيات","السجلات","Cooldown","Auto Delete"].map((x,i)=>`<div class="setting"><div><b>${x}</b><div class="tiny muted">${i===0?"تشغيل أو إيقاف النظام":"تخصيص إعدادات "+x}</div></div>${i===0?'<button class="switch on"></button>':'<button class="btn">تعديل</button>'}</div>`).join("")}</div>`:"");
+}
 shell();
