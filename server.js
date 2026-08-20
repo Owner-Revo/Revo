@@ -204,29 +204,47 @@ class MongoSessionStore extends session.Store {
     try { await c.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }); } catch {}
   }
   get(sid, cb) {
-    const c = this.collection();
-    if (!c) return cb(null, null);
-    c.findOne({ _id: sid }).then(doc => {
+    (async () => {
+      if (mongoose.connection.readyState !== 1) await connectDB();
+      const c = this.collection();
+      if (!c) return cb(null, null);
+      const doc = await c.findOne({ _id: sid });
       if (!doc || (doc.expiresAt && new Date(doc.expiresAt) <= new Date())) return cb(null, null);
       cb(null, doc.session || null);
-    }).catch(err => cb(err));
+    })().catch(err => cb(err));
   }
   set(sid, sess, cb) {
-    const c = this.collection();
-    if (!c) return cb?.(new Error("MongoDB unavailable"));
-    const maxAge = Number(sess?.cookie?.maxAge) || 7 * 24 * 60 * 60 * 1000;
-    c.updateOne({ _id: sid }, { $set: { session: sess, expiresAt: new Date(Date.now() + maxAge) } }, { upsert: true })
-      .then(() => { this.ensureIndexes().catch(() => {}); cb?.(); }).catch(err => cb?.(err));
+    const run = async () => {
+      if (mongoose.connection.readyState !== 1) await connectDB();
+      const c = this.collection();
+      if (!c) throw new Error("MongoDB unavailable");
+      const maxAge = Number(sess?.cookie?.maxAge) || 7 * 24 * 60 * 60 * 1000;
+      await c.updateOne({ _id: sid }, { $set: { session: sess, expiresAt: new Date(Date.now() + maxAge) } }, { upsert: true });
+      this.ensureIndexes().catch(() => {});
+    };
+    run().then(() => cb?.()).catch(err => cb?.(err));
   }
   touch(sid, sess, cb) { this.set(sid, sess, cb); }
   destroy(sid, cb) {
-    const c = this.collection();
-    if (!c) return cb?.();
-    c.deleteOne({ _id: sid }).then(() => cb?.()).catch(err => cb?.(err));
+    (async () => {
+      if (mongoose.connection.readyState !== 1) await connectDB();
+      const c = this.collection();
+      if (!c) return cb?.();
+      await c.deleteOne({ _id: sid });
+      cb?.();
+    })().catch(err => cb?.(err));
   }
 }
 
 const sessionStore = new MongoSessionStore();
+
+// Vercel can start a fresh function instance for the OAuth callback and the
+// following /dashboard request. Wait for MongoDB BEFORE express-session reads
+// the session cookie, otherwise the store can report a missing session.
+app.use(async (req, res, next) => {
+  if (MONGO_URI && mongoose.connection.readyState !== 1) await connectDB();
+  next();
+});
 
 app.use(
   session({
@@ -330,26 +348,37 @@ const FunctionConfig = mongoose.models.RevoFunctionConfig || mongoose.model("Rev
 const LogConfig = mongoose.models.RevoLogConfig || mongoose.model("RevoLogConfig", logConfigSchema);
 const PremiumRoomConfig = mongoose.models.RevoPremiumRoomConfig || mongoose.model("RevoPremiumRoomConfig", premiumRoomSchema);
 
+let dbConnectPromise = null;
+
 function connectDB() {
   if (!MONGO_URI) {
     dbError = "MONGODB_URI not configured";
     console.log("[REVO] Mongo URI missing, using demo data");
-    return;
+    return Promise.resolve(false);
   }
-  mongoose
+  if (mongoose.connection.readyState === 1) {
+    dbConnected = true;
+    return Promise.resolve(true);
+  }
+  if (dbConnectPromise) return dbConnectPromise;
+  dbConnectPromise = mongoose
     .connect(MONGO_URI, { serverSelectionTimeoutMS: 8000 })
     .then(() => {
       dbConnected = true;
       dbError = null;
       console.log("[REVO] MongoDB connected");
+      return true;
     })
     .catch((err) => {
       dbConnected = false;
       dbError = err.message;
       console.log("[REVO] MongoDB connection failed:", err.message);
-      setTimeout(connectDB, 15000);
-    });
+      return false;
+    })
+    .finally(() => { dbConnectPromise = null; });
+  return dbConnectPromise;
 }
+
 connectDB();
 
 async function db(fn, fallback) {
@@ -926,6 +955,34 @@ app.post("/api/guild/autoresponse", requireAuth, requireGuild, async (req, res) 
 });
 
 
+app.get("/api/guild/permissions", requireAuth, requireGuild, async (req,res)=>{
+  try {
+    const cfg=await SystemConfig.findOne({guildId:req.guildId}).lean();
+    res.json({permissions: cfg?.systemSettings?.permissions || {}});
+  } catch(e) { res.status(500).json({error:e.message}); }
+});
+app.post("/api/guild/permissions", requireAuth, requireGuild, async (req,res)=>{
+  if(!dbConnected) return res.status(503).json({error:"Database unavailable"});
+  try {
+    const permissions=bodySanitizePermissions(req.body?.permissions || {});
+    const current=await SystemConfig.findOne({guildId:req.guildId}).lean();
+    const settings={...(current?.systemSettings||{}),permissions};
+    const cfg=await SystemConfig.findOneAndUpdate({guildId:req.guildId},{ $set:{systemSettings:settings}},{new:true,upsert:true}).lean();
+    res.json({ok:true,permissions:cfg.systemSettings?.permissions||{}});
+  } catch(e) { res.status(400).json({error:e.message}); }
+});
+function bodySanitizePermissions(input){
+  const out={};
+  for(const [system, actions] of Object.entries(input||{})){
+    if(!actions || typeof actions!=="object") continue;
+    out[String(system).slice(0,80)]={};
+    for(const [action, roles] of Object.entries(actions)){
+      const arr=Array.isArray(roles)?roles.map(String).filter(Boolean).slice(0,100):[];
+      out[String(system).slice(0,80)][String(action).slice(0,80)]=arr;
+    }
+  }
+  return out;
+}
 app.post("/api/guild/system", requireAuth, requireGuild, async (req,res)=>{ if(!dbConnected)return res.status(503).json({error:"Database unavailable"}); try{const b=req.body||{}; const cfg=await SystemConfig.findOneAndUpdate({guildId:req.guildId},{ $set:{shortcuts:Array.isArray(b.shortcuts)?b.shortcuts:[],logsChannelId:b.logsChannelId||null,systemSettings:b.systemSettings||{}}},{new:true,upsert:true}).lean();res.json({ok:true,config:cfg});}catch(e){res.status(500).json({error:e.message})}});
 app.post("/api/guild/premium/identity", requireAuth, requireGuild, async(req,res)=>{ if(!dbConnected)return res.status(503).json({error:"Database unavailable"}); try{const b=req.body||{}; const cfg=await PremiumIdentity.findOneAndUpdate({guildId:req.guildId},{ $set:{premiumAvatarCustomized:!!b.premiumAvatarCustomized,premiumAvatarUrl:b.premiumAvatarUrl||null,premiumBannerCustomized:!!b.premiumBannerCustomized,premiumBannerUrl:b.premiumBannerUrl||null,premiumNicknameCustomized:!!b.premiumNicknameCustomized,premiumNickname:b.premiumNickname||null}},{new:true,upsert:true}).lean();res.json({ok:true,config:cfg});}catch(e){res.status(500).json({error:e.message})}});
 app.post("/api/guild/tickets/panel/delete", requireAuth, requireGuild, async(req,res)=>{ if(!dbConnected)return res.status(503).json({error:"Database unavailable"}); try{await TicketPanel.deleteOne({_id:req.body?.id,guildId:req.guildId});res.json({ok:true});}catch(e){res.status(500).json({error:e.message})}});
