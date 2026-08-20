@@ -11,11 +11,12 @@
 <div id="toast"></div>
 <div class="shell">
 <aside class="sidebar">
-  <div class="brand"><div class="brand-mark">R</div><div><b>REVO</b><small>CONTROL CENTER</small></div></div>
+  <div class="brand"><div class="brand-mark">R</div><div class="brand-copy"><b>REVO</b><small>CONTROL CENTER</small></div><button id="sideClose" class="side-close" aria-label="إغلاق القائمة">×</button></div>
   <div class="server-picker"><span>السيرفر الحالي</span><select id="guildSelect"><option value="">اختر سيرفر...</option></select></div>
   <nav id="nav"></nav>
   <div class="side-bottom"><a href="https://discord.gg/GxHJZaZDZt" target="_blank">سيرفر الدعم</a><a href="/auth/logout">تسجيل الخروج</a></div>
 </aside>
+<div id="sidebarOverlay" class="sidebar-overlay"></div>
 <main class="main">
 <header class="topbar">
  <button id="menu" class="icon-btn">≡</button>
@@ -25,6 +26,6 @@
 <div id="app" class="content"></div>
 </main>
 </div>
-<div id="drawer" class="drawer"><div class="drawer-backdrop"></div><section class="drawer-panel"><header><div><small id="drawerKicker">REVO</small><h2 id="drawerTitle">إعدادات النظام</h2></div><button id="drawerClose" class="icon-btn">×</button></header><div id="drawerBody"></div></section></div>
+<div id="drawer" class="drawer"><div class="drawer-backdrop"></div><section class="drawer-panel"><header><div><small id="drawerKicker">REVO</small><h2 id="drawerTitle">إعدادات النظام</h2></div><button id="drawerClose" class="drawer-close" aria-label="إغلاق">×<span>إغلاق</span></button></header><div id="drawerBody"></div></section></div>
 <script src="js/api.js"></script><script src="js/dashboard.js"></script>
 </body></html>
