@@ -8,6 +8,7 @@ const mongoose = require("mongoose");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+app.set("trust proxy", 1);
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
@@ -16,7 +17,7 @@ app.use(
     secret: process.env.SESSION_SECRET || "revo-secret",
     resave: false,
     saveUninitialized: false,
-    cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 },
+    cookie: { maxAge: 7 * 24 * 60 * 60 * 1000, secure: process.env.VERCEL === "1", sameSite: "lax" },
   })
 );
 
@@ -732,7 +733,11 @@ app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-app.listen(PORT, () => {
-  console.log(`[REVO Dashboard] Running on http://localhost:${PORT}`);
-  console.log(`[REVO Dashboard] Login URL: ${getAuthURL()}`);
-});
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`[REVO Dashboard] Running on http://localhost:${PORT}`);
+    console.log(`[REVO Dashboard] Login URL: ${getAuthURL()}`);
+  });
+}
+
+module.exports = app;
