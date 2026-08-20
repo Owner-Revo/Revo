@@ -1,1 +1,0 @@
-Revo Dashboard Vercel fixed build. Deploy this folder/repository to Vercel. The UI is self-contained under public/ and no secret is included.
