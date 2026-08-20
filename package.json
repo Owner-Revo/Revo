@@ -1,0 +1,16 @@
+{
+  "name": "revo-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.0",
+    "dotenv": "^16.4.0",
+    "express": "^4.21.0",
+    "express-session": "^1.18.0",
+    "mongoose": "^8.18.0"
+  }
+}
