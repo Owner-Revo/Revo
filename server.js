@@ -3,6 +3,7 @@ const express = require("express");
 const session = require("express-session");
 const axios = require("axios");
 const path = require("path");
+const crypto = require("crypto");
 const mongoose = require("mongoose");
 
 const app = express();
@@ -27,6 +28,7 @@ async function refreshDiscordSession(req) {
     u.refreshToken = data.refresh_token || u.refreshToken;
     u.accessTokenExpiresAt = Date.now() + Math.max(60, Number(data.expires_in || 604800) - 60) * 1000;
     req.session.user = u;
+    try { await saveAuthRecord(req.cookies?.[AUTH_COOKIE], u, req.session.selectedGuildId || null); } catch {}
     return true;
   } catch (e) {
     return false;
@@ -36,6 +38,8 @@ async function refreshDiscordSession(req) {
 async function requireAuth(req, res, next) {
   if (!(req.session && req.session.user)) return res.status(401).json({ error: "Not authenticated" });
   if (!(await refreshDiscordSession(req))) {
+    try { await destroyAuthRecord(req.cookies?.[AUTH_COOKIE]); } catch {}
+    res.clearCookie(AUTH_COOKIE, { httpOnly: true, secure: true, sameSite: "lax", path: "/" });
     return req.session.destroy(() => res.status(401).json({ error: "Session expired" }));
   }
   next();
@@ -238,7 +242,37 @@ class MongoSessionStore extends session.Store {
 
 const sessionStore = new MongoSessionStore();
 
-// Vercel can start a fresh function instance for the OAuth callback and the
+// A second, opaque persistent login cookie backs up express-session on
+// serverless deployments. It never contains Discord tokens; only a random
+// token whose hash is stored in MongoDB. This prevents a fresh Vercel
+// function from treating an already-authenticated user as logged out.
+const AUTH_COOKIE = "revo_auth";
+const AUTH_MAX_AGE = 30 * 24 * 60 * 60 * 1000;
+const authSessionCollection = () => mongoose.connection.readyState === 1
+  ? mongoose.connection.collection("revo_dashboard_auth")
+  : null;
+const hashAuthToken = (token) => crypto.createHash("sha256").update(token).digest("hex");
+async function saveAuthRecord(token, user, selectedGuildId = null) {
+  const c = authSessionCollection(); if (!c) return;
+  await c.updateOne(
+    { _id: hashAuthToken(token) },
+    { $set: { user, selectedGuildId, expiresAt: new Date(Date.now() + AUTH_MAX_AGE) } },
+    { upsert: true },
+  );
+  try { await c.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }); } catch {}
+}
+async function loadAuthRecord(token) {
+  const c = authSessionCollection(); if (!c || !token) return null;
+  const doc = await c.findOne({ _id: hashAuthToken(token) });
+  if (!doc || (doc.expiresAt && new Date(doc.expiresAt) <= new Date())) return null;
+  return doc;
+}
+async function destroyAuthRecord(token) {
+  const c = authSessionCollection(); if (!c || !token) return;
+  await c.deleteOne({ _id: hashAuthToken(token) });
+}
+
+// Vercel can start a fresh function instance for the OAuth callback and the for the OAuth callback and the
 // following /dashboard request. Wait for MongoDB BEFORE express-session reads
 // the session cookie, otherwise the store can report a missing session.
 app.use(async (req, res, next) => {
@@ -256,6 +290,28 @@ app.use(
     cookie: { maxAge: 30 * 24 * 60 * 60 * 1000, httpOnly: true, secure: true, sameSite: "lax" },
   })
 );
+
+app.use((req, _res, next) => {
+  const raw = req.headers.cookie || "";
+  req.cookies = Object.fromEntries(raw.split(";").map(v => v.trim()).filter(Boolean).map(v => { const i=v.indexOf("="); return i<0?[v,""]:[decodeURIComponent(v.slice(0,i)),decodeURIComponent(v.slice(i+1))]; }));
+  next();
+});
+
+// Restore the authenticated user from the durable auth cookie when the
+// express-session cookie was lost between serverless invocations.
+app.use(async (req, res, next) => {
+  if (!req.session?.user && req.cookies?.[AUTH_COOKIE]) {
+    try {
+      const record = await loadAuthRecord(req.cookies[AUTH_COOKIE]);
+      if (record?.user) {
+        req.session.user = record.user;
+        if (record.selectedGuildId) req.session.selectedGuildId = record.selectedGuildId;
+        await new Promise((resolve) => req.session.save(() => resolve()));
+      }
+    } catch {}
+  }
+  next();
+});
 
 const accountSchema = new Schema(
   {
@@ -497,14 +553,24 @@ app.get("/auth/callback", async (req, res) => {
       accessTokenExpiresAt: Date.now() + Math.max(60, Number(tokenData.expires_in || 604800) - 60) * 1000,
       guilds,
     };
-    req.session.save(() => res.redirect("/dashboard.html"));
+    const authToken = crypto.randomBytes(32).toString("hex");
+    await saveAuthRecord(authToken, req.session.user, req.session.selectedGuildId || null);
+    res.cookie(AUTH_COOKIE, authToken, {
+      maxAge: AUTH_MAX_AGE, httpOnly: true, secure: true, sameSite: "lax", path: "/",
+    });
+    req.session.save((saveErr) => {
+      if (saveErr) console.error("Session save error:", saveErr);
+      res.redirect("/dashboard.html");
+    });
   } catch (error) {
     console.error("OAuth callback error:", error.response?.data || error.message);
     res.redirect("/?error=auth_failed");
   }
 });
 
-app.get("/auth/logout", (req, res) => {
+app.get("/auth/logout", async (req, res) => {
+  try { await destroyAuthRecord(req.cookies?.[AUTH_COOKIE]); } catch {}
+  res.clearCookie(AUTH_COOKIE, { httpOnly: true, secure: true, sameSite: "lax", path: "/" });
   req.session.destroy(() => res.redirect("/"));
 });
 
@@ -519,7 +585,8 @@ app.post("/api/guild/select", requireAuth, async (req, res) => {
   const allowed = guilds.some((g) => g.id === String(guildId));
   if (!allowed) return res.status(403).json({ error: "Not allowed" });
   req.session.selectedGuildId = String(guildId);
-  res.json({ ok: true, guildId: String(guildId) });
+  try { await saveAuthRecord(req.cookies?.[AUTH_COOKIE], req.session.user, req.session.selectedGuildId); } catch {}
+  req.session.save(() => res.json({ ok: true, guildId: String(guildId) }));
 });
 
 app.get("/api/user", requireAuth, async (req, res) => {
@@ -602,10 +669,16 @@ app.get("/api/transfers", requireAuth, async (req, res) => {
         return {
           id: String(r._id),
           from: r.fromUserId || "Revo System",
+          to: r.toUserId || "Revo System",
           fromInitials: String(r.fromUserId || "Revo").slice(0, 2).toUpperCase(),
+          toInitials: String(r.toUserId || "Revo").slice(0, 2).toUpperCase(),
           amount: incoming ? r.amount : -(r.totalDebited ?? r.amount ?? 0),
+          netAmount: incoming ? r.amount : -(r.amount ?? 0),
+          tax: Number(r.tax || 0),
           type: incoming ? "incoming" : "outgoing",
+          reason: r.reason || "",
           timeAgo: timeAgo(r.createdAt),
+          createdAt: r.createdAt,
           kind: r.kind || "transfer",
         };
       });
@@ -750,21 +823,21 @@ const BOT_COMMAND_CATALOG = [
   ["come","Utility","استدعاء عضو"],["register-command","Utility","تسجيل أمر"],["embed","Utility","إرسال Embed"],["container","Utility","إرسال Container"],["sticker","Utility","إرسال Sticker"],["emoji","Utility","إرسال Emoji"],["avatar","Utility","Avatar"],["banner","Utility","Banner"],["server-avatar","Utility","صورة السيرفر"],["server-banner","Utility","Banner السيرفر"],["user-info","Utility","معلومات عضو"],["server-info","Utility","معلومات السيرفر"],["role-info","Utility","معلومات رتبة"],["channel-info","Utility","معلومات قناة"],["emoji-info","Utility","معلومات Emoji"],["invite-info","Utility","معلومات Invite"],["poll","Utility","تصويت"],["say","Utility","إرسال رسالة"],["announce","Utility","Announcement"],["translate","Utility","ترجمة"],["remind","Utility","Reminder"],["afk","Utility","AFK"],["calculator","Utility","حاسبة"],["color","Utility","معلومات لون"],["timestamp","Utility","Timestamp"],["member-count","Utility","عدد الأعضاء"],["server-avatar","Utility","صورة السيرفر"],["server-banner","Utility","بانر السيرفر"]
 ].map(([name,category,description])=>({name,category,description}));
 const BOT_SYSTEM_CATALOG = [
- {id:"economy",name:"الاقتصاد والحسابات",icon:"💰",items:["daily","transfer","top","revo","feedback"]},
- {id:"moderation",name:"الإدارة والعقوبات",icon:"🛡️",items:["setup-system","ban","unban","kick","timeout","untimeout","warn","warnings","unwarn","clear","role-add","role-remove","nickname","lock","unlock","slowmode","unslowmode"]},
- {id:"protection",name:"الحماية المتقدمة",icon:"🧿",items:["setup-protection"]},
- {id:"welcome",name:"الترحيب والصور",icon:"👋",items:["setup-welcome"]},
- {id:"autoresponse",name:"الردود التلقائية",icon:"💬",items:["setup-response"]},
- {id:"tickets",name:"التذاكر والدعم",icon:"🎫",items:["setup-ticket"]},
- {id:"levels",name:"XP & Levels",icon:"📈",items:["setup-level","level","leaderboard","xp-add","xp-remove","xp-reset","xp-set","level-set","level-remove","leaderboard-reset"]},
- {id:"functions",name:"الوظائف والرتب",icon:"⚙️",items:["setup-function","set-role"]},
- {id:"logs",name:"السجلات",icon:"📜",items:["logs"]},
+ {id:"economy",name:"الاقتصاد والحسابات",icon:"◆",items:["daily","transfer","top","revo","feedback"]},
+ {id:"moderation",name:"الإدارة والعقوبات",icon:"◇",items:["setup-system","ban","unban","kick","timeout","untimeout","warn","warnings","unwarn","clear","role-add","role-remove","nickname","lock","unlock","slowmode","unslowmode"]},
+ {id:"protection",name:"الحماية المتقدمة",icon:"◉",items:["setup-protection"]},
+ {id:"welcome",name:"الترحيب والصور",icon:"✦",items:["setup-welcome"]},
+ {id:"autoresponse",name:"الردود التلقائية",icon:"◌",items:["setup-response"]},
+ {id:"tickets",name:"التذاكر والدعم",icon:"□",items:["setup-ticket"]},
+ {id:"levels",name:"XP & Levels",icon:"↗",items:["setup-level","level","leaderboard","xp-add","xp-remove","xp-reset","xp-set","level-set","level-remove","leaderboard-reset"]},
+ {id:"functions",name:"الوظائف والرتب",icon:"⚙",items:["setup-function","set-role"]},
+ {id:"logs",name:"السجلات",icon:"≡",items:["logs"]},
  {id:"slash",name:"Slash & Commands",icon:"⌘",items:["register-command"]},
- {id:"publisher",name:"متجر الناشرين",icon:"🛍️",items:["setup-shop"]},
- {id:"rooms",name:"Premium Rooms",icon:"🛰️",items:["room"]},
- {id:"premium",name:"Premium & Bot Identity",icon:"💎",items:["premium","bot"]},
- {id:"voice",name:"أنظمة الصوت",icon:"🔊",items:["voice-kick","voice-move","voice-mute","voice-unmute","deafen","undeafen"]},
- {id:"utility",name:"الأدوات والـUtility",icon:"🧰",items:["come","embed","container","sticker","emoji","avatar","banner","poll","say","announce","translate","remind","afk","calculator","color","timestamp","member-count","server-info","user-info","role-info","channel-info","emoji-info","invite-info"]}
+ {id:"publisher",name:"متجر الناشرين",icon:"◇",items:["setup-shop"]},
+ {id:"rooms",name:"Premium Rooms",icon:"✧",items:["room"]},
+ {id:"premium",name:"Premium & Bot Identity",icon:"◆",items:["premium","bot"]},
+ {id:"voice",name:"أنظمة الصوت",icon:"◍",items:["voice-kick","voice-move","voice-mute","voice-unmute","deafen","undeafen"]},
+ {id:"utility",name:"الأدوات والـUtility",icon:"▣",items:["come","embed","container","sticker","emoji","avatar","banner","poll","say","announce","translate","remind","afk","calculator","color","timestamp","member-count","server-info","user-info","role-info","channel-info","emoji-info","invite-info"]}
 ];
 const BOT_COMMAND_DETAILS = [
   ["admin help","Administration","لوحة المساعدة الإدارية"],
@@ -808,7 +881,7 @@ app.get("/api/guild/economy", requireAuth, requireGuild, async (req,res)=>{
   const data=await db(async()=>{
     const [account, transfers, feedback, top, stats] = await Promise.all([
       Account.findOne({guildId:ACCOUNT_SCOPE,userId}).lean(),
-      Transfer.find({guildId}).sort({createdAt:-1}).limit(25).lean(),
+      Transfer.find({guildId, kind:"transfer", $or:[{fromUserId:userId},{toUserId:userId}]}).sort({createdAt:-1}).limit(100).lean(),
       Feedback.find({guildId}).sort({createdAt:-1}).limit(25).lean(),
       Account.find({guildId:ACCOUNT_SCOPE,hiddenTop:{$ne:true}}).sort({balance:-1}).limit(20).lean(),
       Transfer.aggregate([{ $match:{guildId} },{ $group:{ _id:null, count:{ $sum:1 }, volume:{ $sum:"$amount" } } }])
@@ -844,7 +917,7 @@ app.post("/api/guild/slash", requireAuth, requireGuild, async(req,res)=>{ if(!db
 app.post("/api/guild/logs", requireAuth, requireGuild, async(req,res)=>{ if(!dbConnected)return res.status(503).json({error:"Database unavailable"}); try{const body=req.body||{};const cfg=await LogConfig.findOneAndUpdate({guildId:req.guildId},{ $set:{globalChannelId:body.globalChannelId||null,events:body.events||{}}},{new:true,upsert:true}).lean();res.json({ok:true,config:cfg});}catch(e){res.status(500).json({error:e.message})}});
 app.post("/api/guild/publisher", requireAuth, requireGuild, async(req,res)=>{ if(!dbConnected)return res.status(503).json({error:"Database unavailable"}); try{const b=req.body||{};const cfg=await PublisherShop.findOneAndUpdate({guildId:req.guildId},{ $set:{enabled:!!b.enabled,categories:Array.isArray(b.categories)?b.categories:[],channels:Array.isArray(b.channels)?b.channels:[],rewardAmount:Number(b.rewardAmount)||25000,cooldownMs:Number(b.cooldownMs)||90000000,mentionMode:b.mentionMode||"everyone"}},{new:true,upsert:true}).lean();res.json({ok:true,config:cfg});}catch(e){res.status(500).json({error:e.message})}});
 app.post("/api/guild/rooms", requireAuth, requireGuild, async(req,res)=>{ if(!dbConnected)return res.status(503).json({error:"Database unavailable"}); try{const b=req.body||{};const cfg=await PremiumRoomConfig.findOneAndUpdate({guildId:req.guildId},{ $set:{emoji:Array.isArray(b.emoji)?b.emoji:[],emojiSources:Array.isArray(b.emojiSources)?b.emojiSources:[],sticker:Array.isArray(b.sticker)?b.sticker:[],stickerSources:Array.isArray(b.stickerSources)?b.stickerSources:[],outline:b.outline||{channels:[],image:null},autorec:b.autorec||{channels:[],emoji:null}}},{new:true,upsert:true}).lean();res.json({ok:true,config:cfg});}catch(e){res.status(500).json({error:e.message})}});
-app.post("/api/guild/tickets/panel", requireAuth, requireGuild, async(req,res)=>{ if(!dbConnected)return res.status(503).json({error:"Database unavailable"}); try{const b=req.body||{}; if(!b.name)return res.status(400).json({error:"اسم اللوحة مطلوب"}); const cfg=await TicketPanel.findOneAndUpdate({guildId:req.guildId,name:b.name},{ $set:{description:b.description||"",emoji:b.emoji||"🎫",image:b.image||null,thumbnail:b.thumbnail||null,color:Number(b.color)||5793266,messageStyle:b.messageStyle||"embed",categoryId:b.categoryId||null,supportRoleIds:Array.isArray(b.supportRoleIds)?b.supportRoleIds:[],mentionRoleIds:Array.isArray(b.mentionRoleIds)?b.mentionRoleIds:[],ticketNameFormat:b.ticketNameFormat||"ticket-{number}",openingMethod:b.openingMethod||"button",form:Array.isArray(b.form)?b.form:[],autoMessages:b.autoMessages||{},rolePermissions:Array.isArray(b.rolePermissions)?b.rolePermissions:[],enabled:b.enabled!==false,isQuick:!!b.isQuick,claimEnabled:b.claimEnabled!==false,claimPoints:Number(b.claimPoints)||0,topClaimEnabled:!!b.topClaimEnabled,topPointEnabled:!!b.topPointEnabled,transcriptEnabled:b.transcriptEnabled!==false,logChannelId:b.logChannelId||null,ticketPrefix:b.ticketPrefix||"t!",enabledCommands:Array.isArray(b.enabledCommands)?b.enabledCommands:[]}},{new:true,upsert:true}).lean();res.json({ok:true,panel:cfg});}catch(e){res.status(500).json({error:e.message})}});
+app.post("/api/guild/tickets/panel", requireAuth, requireGuild, async(req,res)=>{ if(!dbConnected)return res.status(503).json({error:"Database unavailable"}); try{const b=req.body||{}; if(!b.name)return res.status(400).json({error:"اسم اللوحة مطلوب"}); const cfg=await TicketPanel.findOneAndUpdate({guildId:req.guildId,name:b.name},{ $set:{description:b.description||"",emoji:b.emoji||"□",image:b.image||null,thumbnail:b.thumbnail||null,color:Number(b.color)||5793266,messageStyle:b.messageStyle||"embed",categoryId:b.categoryId||null,supportRoleIds:Array.isArray(b.supportRoleIds)?b.supportRoleIds:[],mentionRoleIds:Array.isArray(b.mentionRoleIds)?b.mentionRoleIds:[],ticketNameFormat:b.ticketNameFormat||"ticket-{number}",openingMethod:b.openingMethod||"button",form:Array.isArray(b.form)?b.form:[],autoMessages:b.autoMessages||{},rolePermissions:Array.isArray(b.rolePermissions)?b.rolePermissions:[],enabled:b.enabled!==false,isQuick:!!b.isQuick,claimEnabled:b.claimEnabled!==false,claimPoints:Number(b.claimPoints)||0,topClaimEnabled:!!b.topClaimEnabled,topPointEnabled:!!b.topPointEnabled,transcriptEnabled:b.transcriptEnabled!==false,logChannelId:b.logChannelId||null,ticketPrefix:b.ticketPrefix||"t!",enabledCommands:Array.isArray(b.enabledCommands)?b.enabledCommands:[]}},{new:true,upsert:true}).lean();res.json({ok:true,panel:cfg});}catch(e){res.status(500).json({error:e.message})}});
 
 /* ---------- Controls (POST) ---------- */
 app.post("/api/guild/welcome", requireAuth, requireGuild, async (req, res) => {
@@ -1082,9 +1155,11 @@ app.get("/api/config/status", requireAuth, (req, res) => {
 });
 
 app.get("/api/check", (req, res) => {
+  const u=req.session?.user||null;
   res.json({
     ok: true,
-    authenticated: !!req.session?.user,
+    authenticated: !!u,
+    user: u ? { id:u.id, username:u.username, globalName:u.globalName, avatar:u.avatar } : null,
     dbConnected,
     demo: false,
   });
