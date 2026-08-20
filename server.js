@@ -468,7 +468,7 @@ app.get("/auth/callback", async (req, res) => {
       accessTokenExpiresAt: Date.now() + Math.max(60, Number(tokenData.expires_in || 604800) - 60) * 1000,
       guilds,
     };
-    res.redirect("/dashboard.html");
+    req.session.save(() => res.redirect("/dashboard.html"));
   } catch (error) {
     console.error("OAuth callback error:", error.response?.data || error.message);
     res.redirect("/?error=auth_failed");
@@ -1050,11 +1050,18 @@ function fmtNum(n) {
   return String(n);
 }
 
+app.get("/dashboard.html", requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "dashboard.html"));
+});
+
+app.get("/", (req, res) => {
+  // The public landing page is always accessible. Authentication starts only
+  // when the visitor explicitly presses the Discord login button.
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
 app.get("*", (req, res) => {
   if (req.path.startsWith("/api/") || req.path.startsWith("/auth/")) return;
-  if (req.path === "/dashboard.html" && (!req.session || !req.session.user)) {
-    return res.redirect("/");
-  }
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
