@@ -1,205 +1,27 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Revo Bot - تسجيل الدخول</title>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>REVO BOT — Control Center</title>
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800;900&display=swap" rel="stylesheet">
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-
-    body {
-      min-height: 100vh;
-      background: #090b1d;
-      font-family: 'Tajawal', sans-serif;
-      color: #fff;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .bg-glow {
-      position: fixed;
-      width: 500px;
-      height: 500px;
-      border-radius: 50%;
-      filter: blur(180px);
-      opacity: 0.12;
-      pointer-events: none;
-    }
-    .bg-glow-1 { background: #9e65ff; top: -150px; left: -150px; }
-    .bg-glow-2 { background: #5534d9; bottom: -150px; right: -150px; }
-
-    .login-box {
-      position: relative;
-      z-index: 10;
-      text-align: center;
-      padding: 50px 40px;
-      background: rgba(13, 16, 39, 0.9);
-      border: 1px solid #25274c;
-      border-radius: 20px;
-      backdrop-filter: blur(10px);
-      max-width: 420px;
-      width: 92%;
-    }
-
-    .logo {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 12px;
-      margin-bottom: 10px;
-    }
-
-    .logo-icon {
-      width: 52px;
-      height: 52px;
-      border-radius: 14px;
-      background: linear-gradient(135deg, #9e65ff, #5534d9);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 0 25px rgba(119, 74, 255, 0.45);
-    }
-
-    .logo-icon svg { width: 28px; height: 28px; color: #fff; }
-
-    .logo-text h1 {
-      font-size: 26px;
-      font-weight: 900;
-      letter-spacing: 1px;
-    }
-    .logo-text h1 span { color: #9062ff; }
-
-    .subtitle {
-      color: #676b99;
-      font-size: 13px;
-      margin-bottom: 36px;
-    }
-
-    .features {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      margin-bottom: 36px;
-    }
-
-    .feature-card {
-      background: rgba(25, 27, 64, 0.5);
-      border: 1px solid #25274c;
-      border-radius: 10px;
-      padding: 14px 10px;
-      text-align: center;
-    }
-
-    .feature-card .icon {
-      font-size: 22px;
-      margin-bottom: 6px;
-    }
-
-    .feature-card h3 {
-      font-size: 11px;
-      font-weight: 700;
-      margin-bottom: 2px;
-    }
-
-    .feature-card p {
-      font-size: 9px;
-      color: #676b99;
-    }
-
-    .discord-btn {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      width: 100%;
-      padding: 14px 28px;
-      background: #5865f2;
-      color: #fff;
-      border: none;
-      border-radius: 12px;
-      font-family: 'Tajawal', sans-serif;
-      font-size: 15px;
-      font-weight: 700;
-      cursor: pointer;
-      transition: background 0.2s ease;
-      text-decoration: none;
-    }
-
-    .discord-btn:hover {
-      background: #4752c4;
-    }
-
-    .discord-btn svg { width: 22px; height: 22px; }
-
-    .footer {
-      margin-top: 20px;
-      color: #3d3f6b;
-      font-size: 10px;
-    }
+    *{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:Tajawal,sans-serif;background:#03040b;color:#fff}body{overflow-x:hidden}.space{position:fixed;inset:0;overflow:hidden;background:radial-gradient(circle at 20% 10%,rgba(124,58,237,.15),transparent 28%),radial-gradient(circle at 90% 85%,rgba(37,99,235,.11),transparent 30%),#03040b}.stars{position:absolute;inset:0;background-image:radial-gradient(#fff 1px,transparent 1px);background-size:55px 55px;opacity:.14}.nebula{position:absolute;width:55vw;height:55vw;border-radius:50%;filter:blur(90px);opacity:.12}.n1{background:#7c3aed;top:-25vw;right:-20vw}.n2{background:#2563eb;bottom:-30vw;left:-20vw}.wrap{position:relative;z-index:2;min-height:100vh;display:grid;place-items:center;padding:28px}.login-shell{width:min(1060px,100%);display:grid;grid-template-columns:1.15fr .85fr;gap:18px}.hero,.card{border:1px solid rgba(255,255,255,.09);background:linear-gradient(145deg,rgba(16,18,31,.86),rgba(6,8,17,.84));backdrop-filter:blur(24px);border-radius:28px;box-shadow:0 30px 90px rgba(0,0,0,.42)}.hero{padding:42px;position:relative;overflow:hidden}.hero:after{content:"";position:absolute;width:430px;height:430px;right:-180px;top:-190px;border-radius:50%;background:radial-gradient(circle,rgba(139,92,246,.23),transparent 65%)}.brand{display:flex;align-items:center;gap:13px}.logo{width:56px;height:56px;border-radius:17px;display:grid;place-items:center;background:linear-gradient(135deg,#8b5cf6,#4f46e5);box-shadow:0 0 35px rgba(124,58,237,.4)}.brand h1{font-size:25px;margin:0;font-weight:900;letter-spacing:1px}.brand h1 span{color:#a78bfa}.eyebrow{color:#a78bfa;font-size:10px;font-weight:900;letter-spacing:2px}.hero h2{font-size:42px;line-height:1.15;margin:35px 0 12px;font-weight:900;max-width:620px}.hero h2 span{background:linear-gradient(90deg,#fff,#a78bfa);-webkit-background-clip:text;background-clip:text;color:transparent}.hero p{color:#8f93ad;line-height:1.9;max-width:620px;margin:0}.feature-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:28px}.feature{padding:14px;border-radius:15px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.06)}.feature b{display:block;font-size:12px}.feature span{font-size:10px;color:#7d819b}.card{padding:30px;align-self:center}.login-title{font-size:23px;font-weight:900;margin:0 0 8px}.muted{font-size:12px;color:#8589a4;line-height:1.8}.discord{display:flex;align-items:center;justify-content:center;gap:10px;text-decoration:none;color:#fff;background:#5865f2;border-radius:15px;padding:15px;margin-top:22px;font-weight:800;transition:.2s;box-shadow:0 14px 30px rgba(88,101,242,.2)}.discord:hover{transform:translateY(-2px);background:#6875f5}.actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}.action{display:flex;align-items:center;justify-content:center;padding:12px;border-radius:13px;text-decoration:none;color:#dfe1ef;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.025);font-size:11px;font-weight:700}.owner{display:flex;gap:12px;align-items:center;margin-top:22px;padding:13px;border-radius:15px;background:rgba(124,58,237,.08);border:1px solid rgba(139,92,246,.12)}.owner-dot{width:9px;height:9px;border-radius:50%;background:#34d399;box-shadow:0 0 12px #34d399}.footer{text-align:center;color:#555a73;font-size:10px;margin-top:24px}.error{color:#fda4af;background:rgba(244,63,94,.08);border:1px solid rgba(244,63,94,.15);padding:10px;border-radius:12px;font-size:11px;margin-top:12px}@media(max-width:800px){.login-shell{grid-template-columns:1fr}.hero{padding:30px}.hero h2{font-size:31px}.feature-grid{grid-template-columns:1fr}.card{padding:24px}}
   </style>
 </head>
 <body>
-  <div class="bg-glow bg-glow-1"></div>
-  <div class="bg-glow bg-glow-2"></div>
-
-  <div class="login-box">
-    <div class="logo">
-      <div class="logo-icon">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 8V4H8"></path>
-          <rect width="16" height="12" x="4" y="8" rx="2"></rect>
-          <path d="M2 14h2"></path>
-          <path d="M20 14h2"></path>
-          <path d="M15 13v2"></path>
-          <path d="M9 13v2"></path>
-        </svg>
-      </div>
-      <div class="logo-text">
-        <h1>REVO <span>BOT</span></h1>
-      </div>
-    </div>
-
-    <p class="subtitle">مجتمعك، بإدارة أذكى</p>
-
-    <div class="features">
-      <div class="feature-card">
-        <div class="icon">💰</div>
-        <h3>نظام اقتصادي</h3>
-        <p>تحويلات، مكافآت، متجر</p>
-      </div>
-      <div class="feature-card">
-        <div class="icon">🛡️</div>
-        <h3>حماية السيرفر</h3>
-        <p>17 نظام حماية</p>
-      </div>
-      <div class="feature-card">
-        <div class="icon">🎫</div>
-        <h3>نظام التذاكر</h3>
-        <p>12 لوحة تذاكر</p>
-      </div>
-      <div class="feature-card">
-        <div class="icon">📊</div>
-        <h3>إحصائيات</h3>
-        <p>مراقبة شاملة</p>
-      </div>
-    </div>
-
-    <a href="/auth/login" class="discord-btn">
-      <svg viewBox="0 0 24 24" fill="currentColor">
-        <path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286z"/>
-      </svg>
-      تسجيل الدخول عبر Discord
-    </a>
-
-    <p class="footer">بوت إدارة المجتمع الأذكى في عرب</p>
-  </div>
-
-  <script>
-    fetch('/api/check').then(r => r.json()).then(d => {
-      if (d.authenticated) window.location.href = '/dashboard.html';
-    });
-  </script>
-</body>
-</html>
+<div class="space"><div class="stars"></div><div class="nebula n1"></div><div class="nebula n2"></div></div>
+<div class="wrap"><div class="login-shell">
+  <section class="hero"><div class="brand"><div class="logo">◈</div><div><h1>REVO <span>BOT</span></h1><div class="eyebrow">PRO MAX CONTROL CENTER</div></div></div>
+    <h2>إدارة سيرفرك <span>بطريقة مختلفة.</span></h2><p>لوحة تحكم فضائية احترافية مبنية على أنظمة Revo الفعلية: حماية، تذاكر، XP، اقتصاد، وظائف، Premium، أدوات وسجلات — كلها في مكان واحد.</p>
+    <div class="feature-grid"><div class="feature"><b>🛡️ حماية متقدمة</b><span>17 نظام حماية</span></div><div class="feature"><b>🎫 Tickets</b><span>لوحات ودعم احترافي</span></div><div class="feature"><b>📈 XP & Economy</b><span>مستويات وتحويلات</span></div></div>
+  </section>
+  <section class="card"><div class="eyebrow">DISCORD AUTHENTICATION</div><h2 class="login-title">مرحبًا بك في Revo</h2><p class="muted">سجّل دخولك بحساب Discord لإدارة السيرفرات التي تملك صلاحية إدارتها والبوت موجود فيها.</p>
+    <a class="discord" href="/auth/login">◈ &nbsp; تسجيل الدخول عبر Discord</a>
+    <div class="actions"><a class="action" href="https://discord.gg/GxHJZaZDZt" target="_blank">💬 سيرفر الدعم</a><a class="action" href="/auth/add-bot" target="_blank">🤖 إضافة البوت</a></div>
+    <div id="errorBox" class="error" style="display:none">تعذر تسجيل الدخول. تأكد من إعدادات OAuth ثم حاول مرة أخرى.</div>
+    <div class="owner"><span class="owner-dot"></span><div><b>Revo Bot Online</b><div class="muted">لوحة التحكم الرسمية • حماية بيانات الجلسة</div></div></div>
+    <div class="footer">REVO BOT • PRO MAX • Built for serious communities</div>
+  </section>
+</div></div>
+<script>fetch('/api/check').then(r=>r.json()).then(d=>{if(d.authenticated)location.href='/dashboard.html';const e=new URLSearchParams(location.search).get('error');if(e)document.getElementById('errorBox').style.display='block'}).catch(()=>{});</script>
+</body></html>

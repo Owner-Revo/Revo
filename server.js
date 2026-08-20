@@ -27,8 +27,19 @@ function requireAuth(req, res, next) {
 }
 
 const DISCORD_API = "https://discord.com/api/v10";
+const BOT_OWNER_ID = process.env.BOT_OWNER_ID || "1414287578387189932";
+const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN || process.env.DISCORD_TOKEN || "";
 const SCOPES = ["identify", "guilds"];
 const PERM_MANAGE_GUILD = 0x20n;
+
+function configStatus() {
+  return {
+    oauth: !!(process.env.DISCORD_CLIENT_ID && process.env.DISCORD_CLIENT_SECRET && process.env.DISCORD_REDIRECT_URI),
+    botToken: !!BOT_TOKEN,
+    mongo: !!process.env.MONGODB_URI,
+    owner: BOT_OWNER_ID,
+  };
+}
 
 function guildPermissionBits(perms) {
   try {
@@ -72,6 +83,17 @@ async function fetchDiscordUser(token) {
   return data;
 }
 
+async function fetchDiscordUserById(userId) {
+  try {
+    const { data } = await axios.get(`${DISCORD_API}/users/${userId}`, {
+      headers: { Authorization: `Bot ${BOT_TOKEN}` },
+    });
+    return data;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchUserGuilds(token) {
   const { data } = await axios.get(`${DISCORD_API}/users/@me/guilds`, {
     headers: { Authorization: `Bearer ${token}` },
@@ -100,7 +122,7 @@ async function manageableGuilds(userGuilds) {
 async function fetchBotGuilds() {
   try {
     const { data } = await axios.get(`${DISCORD_API}/users/@me/guilds`, {
-      headers: { Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}` },
+      headers: { Authorization: `Bot ${BOT_TOKEN}` },
     });
     return data;
   } catch {
@@ -111,12 +133,27 @@ async function fetchBotGuilds() {
 async function fetchGuildDetails(guildId) {
   try {
     const { data } = await axios.get(`${DISCORD_API}/guilds/${guildId}`, {
-      headers: { Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}` },
+      headers: { Authorization: `Bot ${BOT_TOKEN}` },
       params: { with_counts: true },
     });
     return data;
   } catch {
     return null;
+  }
+}
+
+async function fetchGuildResources(guildId) {
+  try {
+    const [channelsRes, rolesRes] = await Promise.all([
+      axios.get(`${DISCORD_API}/guilds/${guildId}/channels`, { headers: { Authorization: `Bot ${BOT_TOKEN}` } }),
+      axios.get(`${DISCORD_API}/guilds/${guildId}/roles`, { headers: { Authorization: `Bot ${BOT_TOKEN}` } }),
+    ]);
+    return {
+      channels: (channelsRes.data || []).map(c => ({ id: c.id, name: c.name, type: c.type, parentId: c.parent_id || null })),
+      roles: (rolesRes.data || []).map(r => ({ id: r.id, name: r.name, position: r.position, color: r.color, managed: !!r.managed })),
+    };
+  } catch (e) {
+    return { channels: [], roles: [] };
   }
 }
 
@@ -188,6 +225,7 @@ const ticketPanelSchema = new Schema(
 const ticketSchema = new Schema({ guildId: String, panelId: Schema.Types.ObjectId, channelId: String, creatorId: String, claimedBy: String, status: String, number: Number, answers: Map, blacklistedUserIds: [String], closedAt: Date, closedBy: String, controlMessageId: String }, { timestamps: true });
 const publisherShopSchema = new Schema({ guildId: String, enabled: Boolean, categories: [String], channels: [String], rewardAmount: Number, cooldownMs: Number, mentionMode: String, statistics: Schema.Types.Mixed }, { timestamps: true });
 const functionConfigSchema = new Schema({ guildId: String, enabled: Schema.Types.Mixed, allowedRoles: Schema.Types.Mixed, leaveRoleId: String, blacklistRoleId: String, roleCategories: [Schema.Types.Mixed] }, { timestamps: true });
+const premiumRoomSchema = new Schema({ guildId: String, emoji: [String], emojiSources: [String], sticker: [String], stickerSources: [String], outline: { channels: [String], image: String }, autorec: { channels: [String], emoji: String } }, { timestamps: true });
 const logConfigSchema = new Schema({ guildId: String, globalChannelId: String, events: Schema.Types.Mixed }, { timestamps: true });
 
 const Account = mongoose.models.RevoAccount || mongoose.model("RevoAccount", accountSchema, "Revoaccounts");
@@ -206,6 +244,7 @@ const Ticket = mongoose.models.RevoTicket || mongoose.model("RevoTicket", ticket
 const PublisherShop = mongoose.models.RevoPublisherShop || mongoose.model("RevoPublisherShop", publisherShopSchema, "RevoPublisherShops");
 const FunctionConfig = mongoose.models.RevoFunctionConfig || mongoose.model("RevoFunctionConfig", functionConfigSchema, "RevoFunctionConfigs");
 const LogConfig = mongoose.models.RevoLogConfig || mongoose.model("RevoLogConfig", logConfigSchema, "RevoLogConfigs");
+const PremiumRoomConfig = mongoose.models.RevoPremiumRoomConfig || mongoose.model("RevoPremiumRoomConfig", premiumRoomSchema, "RevoPremiumRoomConfigs");
 
 function connectDB() {
   if (!MONGO_URI) {
@@ -291,6 +330,10 @@ function demoGuildStats() {
 
 /* ---------- OAuth ---------- */
 app.get("/auth/login", (req, res) => res.redirect(getAuthURL()));
+app.get("/auth/add-bot", (req, res) => {
+  const params = new URLSearchParams({ client_id: process.env.DISCORD_CLIENT_ID || "", permissions: "8", scope: "bot applications.commands" });
+  res.redirect(`https://discord.com/oauth2/authorize?${params.toString()}`);
+});
 
 function requireGuild(req, res, next) {
   const guildId = req.query.guildId || req.session.selectedGuildId;
@@ -380,7 +423,7 @@ app.get("/api/user", requireAuth, async (req, res) => {
           balance: account.balance || 0,
           isVip: !!account.isVip,
           isAdmin: !!account.isAdmin,
-          isOwner: !!account.isOwner,
+          isOwner: !!account.isOwner || u.id === BOT_OWNER_ID,
           blacklisted: !!account.blacklisted,
           hiddenTop: !!account.hiddenTop,
           nextDailyRewardAt: account.nextDailyRewardAt || null,
@@ -560,6 +603,40 @@ app.get("/api/guild/autoresponse", requireAuth, requireGuild, async (req, res) =
   res.json(data);
 });
 
+/* ---------- Full bot catalog + advanced configuration ---------- */
+const BOT_COMMAND_CATALOG = [
+  {name:"help",category:"أساسي",description:"مركز المساعدة والأوامر"},{name:"top",category:"اقتصاد",description:"عرض التوب"},{name:"daily",category:"اقتصاد",description:"المكافأة اليومية"},{name:"transfer",category:"اقتصاد",description:"تحويل رصيد"},{name:"revo",category:"اقتصاد",description:"أوامر ريفو"},
+  {name:"setup-system",category:"إدارة",description:"إعداد نظام الإدارة"},{name:"ban",category:"إدارة",description:"حظر عضو"},{name:"unban",category:"إدارة",description:"فك الحظر"},{name:"kick",category:"إدارة",description:"طرد عضو"},{name:"timeout",category:"إدارة",description:"إعطاء Timeout"},{name:"untimeout",category:"إدارة",description:"إزالة Timeout"},{name:"warn",category:"إدارة",description:"تحذير عضو"},{name:"warnings",category:"إدارة",description:"عرض التحذيرات"},{name:"unwarn",category:"إدارة",description:"إزالة تحذير"},{name:"clear",category:"إدارة",description:"حذف رسائل"},
+  {name:"role-add",category:"إدارة",description:"إضافة رتبة"},{name:"role-remove",category:"إدارة",description:"إزالة رتبة"},{name:"voice-kick",category:"الصوت",description:"طرد من الصوت"},{name:"voice-move",category:"الصوت",description:"نقل عضو صوتيًا"},{name:"voice-mute",category:"الصوت",description:"كتم صوتي"},{name:"voice-unmute",category:"الصوت",description:"إلغاء كتم صوتي"},{name:"deafen",category:"الصوت",description:"Deafen"},{name:"undeafen",category:"الصوت",description:"إلغاء Deafen"},{name:"nickname",category:"إدارة",description:"تغيير لقب عضو"},{name:"lock",category:"إدارة",description:"قفل القناة"},{name:"unlock",category:"إدارة",description:"فتح القناة"},{name:"slowmode",category:"إدارة",description:"تفعيل Slowmode"},{name:"unslowmode",category:"إدارة",description:"إلغاء Slowmode"},
+  {name:"setup-welcome",category:"الترحيب",description:"إعداد الترحيب"},{name:"setup-response",category:"الردود",description:"إعداد الردود التلقائية"},{name:"setup-ticket",category:"التذاكر",description:"إعداد التذاكر"},{name:"setup-level",category:"المستويات",description:"إعداد XP وLevels"},{name:"leaderboard",category:"المستويات",description:"لوحة المتصدرين"},{name:"xp-add",category:"المستويات",description:"إضافة XP"},{name:"xp-remove",category:"المستويات",description:"إزالة XP"},{name:"xp-reset",category:"المستويات",description:"تصفير XP"},{name:"xp-set",category:"المستويات",description:"تحديد XP"},{name:"level-set",category:"المستويات",description:"تحديد Level"},{name:"level-remove",category:"المستويات",description:"إزالة Level"},{name:"leaderboard-reset",category:"المستويات",description:"تصفير التوب"},
+  {name:"setup-protection",category:"الحماية",description:"إعداد 17 نظام حماية"},{name:"setup-function",category:"الوظائف",description:"إعداد الترقية والتخفيض والفصل"},{name:"set-role",category:"الوظائف",description:"تحديد رتبة وظيفة"},{name:"setup-shop",category:"متجر الناشرين",description:"إعداد متجر الناشرين"},{name:"room",category:"Premium Rooms",description:"إدارة رومات Premium"},{name:"bot",category:"Premium",description:"تخصيص هوية البوت"},
+  {name:"come",category:"Utility",description:"استدعاء عضو"},{name:"register-command",category:"Utility",description:"تسجيل أمر مخصص"},{name:"embed",category:"Utility",description:"إرسال Embed"},{name:"container",category:"Utility",description:"إرسال Container"},{name:"sticker",category:"Utility",description:"إرسال Sticker"},{name:"emoji",category:"Utility",description:"إرسال Emoji"},{name:"avatar",category:"Utility",description:"عرض Avatar"},{name:"banner",category:"Utility",description:"عرض Banner"},{name:"server-avatar",category:"Utility",description:"صورة السيرفر"},{name:"server-banner",category:"Utility",description:"Banner السيرفر"},{name:"user-info",category:"Utility",description:"معلومات عضو"},{name:"server-info",category:"Utility",description:"معلومات السيرفر"},{name:"role-info",category:"Utility",description:"معلومات رتبة"},{name:"channel-info",category:"Utility",description:"معلومات قناة"},{name:"emoji-info",category:"Utility",description:"معلومات Emoji"},{name:"invite-info",category:"Utility",description:"معلومات Invite"},{name:"poll",category:"Utility",description:"إنشاء تصويت"},{name:"say",category:"Utility",description:"إرسال رسالة"},{name:"announce",category:"Utility",description:"إعلان Embed"},{name:"translate",category:"Utility",description:"ترجمة"},{name:"remind",category:"Utility",description:"تذكير"},{name:"afk",category:"Utility",description:"AFK"},{name:"calculator",category:"Utility",description:"آلة حاسبة"},{name:"color",category:"Utility",description:"معلومات لون"},{name:"timestamp",category:"Utility",description:"تحويل Timestamp"},{name:"member-count",category:"Utility",description:"عدد الأعضاء"},
+];
+const BOT_SYSTEM_CATALOG = [
+  {id:"economy",name:"الاقتصاد",icon:"💰",items:["daily","transfer","top","revo"]},{id:"moderation",name:"الإدارة والمراقبة",icon:"🛡️",items:["ban","unban","kick","timeout","warn","clear","role-add","role-remove","nickname","lock","unlock","slowmode"]},{id:"protection",name:"الحماية",icon:"🧿",items:["setup-protection"]},{id:"welcome",name:"الترحيب",icon:"👋",items:["setup-welcome"]},{id:"tickets",name:"التذاكر",icon:"🎫",items:["setup-ticket"]},{id:"levels",name:"XP & Levels",icon:"📈",items:["setup-level","leaderboard","xp-add","xp-remove","xp-set","level-set"]},{id:"autoresponse",name:"الردود التلقائية",icon:"💬",items:["setup-response"]},{id:"functions",name:"الوظائف",icon:"⚙️",items:["setup-function","set-role"]},{id:"premium",name:"Premium",icon:"💎",items:["bot","room"]},{id:"publisher",name:"متجر الناشرين",icon:"🛍️",items:["setup-shop"]},{id:"utility",name:"الأدوات",icon:"🧰",items:["register-command","embed","poll","announce","translate","remind","calculator"]},{id:"voice",name:"الصوت",icon:"🔊",items:["voice-kick","voice-move","voice-mute","voice-unmute","deafen","undeafen"]},{id:"logs",name:"السجلات",icon:"📜",items:["audit","events"]}
+];
+
+app.get("/api/bot/catalog", requireAuth, (req,res) => res.json({commands: BOT_COMMAND_CATALOG, systems: BOT_SYSTEM_CATALOG}));
+app.get("/api/guild/resources", requireAuth, requireGuild, async (req,res) => res.json(await fetchGuildResources(req.guildId)));
+
+app.get("/api/guild/full-config", requireAuth, requireGuild, async (req,res) => {
+  const guildId=req.guildId;
+  const data=await db(async()=>{
+    const [system,slash,func,logs,publisher,rooms,premium,tickets]=await Promise.all([
+      SystemConfig.findOne({guildId}).lean(), SlashCommandConfig.findOne({guildId}).lean(), FunctionConfig.findOne({guildId}).lean(), LogConfig.findOne({guildId}).lean(), PublisherShop.findOne({guildId}).lean(), PremiumRoomConfig.findOne({guildId}).lean(), PremiumIdentity.findOne({guildId}).lean(), TicketPanel.find({guildId}).lean()
+    ]);
+    return {system,slash,functionConfig:func,logs,publisher,rooms,premium,tickets};
+  }, {system:null,slash:null,functionConfig:null,logs:null,publisher:null,rooms:null,premium:null,tickets:[]});
+  res.json(data);
+});
+
+app.post("/api/guild/function", requireAuth, requireGuild, async(req,res)=>{ if(!dbConnected)return res.status(503).json({error:"Database unavailable"}); try{const body=req.body||{}; const cfg=await FunctionConfig.findOneAndUpdate({guildId:req.guildId},{ $set:{enabled:body.enabled||{},allowedRoles:body.allowedRoles||{},leaveRoleId:body.leaveRoleId||null,blacklistRoleId:body.blacklistRoleId||null,roleCategories:Array.isArray(body.roleCategories)?body.roleCategories:[]}},{new:true,upsert:true}).lean();res.json({ok:true,config:cfg});}catch(e){res.status(500).json({error:e.message})}});
+app.post("/api/guild/slash", requireAuth, requireGuild, async(req,res)=>{ if(!dbConnected)return res.status(503).json({error:"Database unavailable"}); try{const body=req.body||{};const cfg=await SlashCommandConfig.findOneAndUpdate({guildId:req.guildId},{ $set:{enabledCommands:Array.isArray(body.enabledCommands)?body.enabledCommands:[],registeredCommands:Array.isArray(body.registeredCommands)?body.registeredCommands:[],comeSlashEnabled:!!body.comeSlashEnabled,comePrefixEnabled:!!body.comePrefixEnabled}},{new:true,upsert:true}).lean();res.json({ok:true,config:cfg});}catch(e){res.status(500).json({error:e.message})}});
+app.post("/api/guild/logs", requireAuth, requireGuild, async(req,res)=>{ if(!dbConnected)return res.status(503).json({error:"Database unavailable"}); try{const body=req.body||{};const cfg=await LogConfig.findOneAndUpdate({guildId:req.guildId},{ $set:{globalChannelId:body.globalChannelId||null,events:body.events||{}}},{new:true,upsert:true}).lean();res.json({ok:true,config:cfg});}catch(e){res.status(500).json({error:e.message})}});
+app.post("/api/guild/publisher", requireAuth, requireGuild, async(req,res)=>{ if(!dbConnected)return res.status(503).json({error:"Database unavailable"}); try{const b=req.body||{};const cfg=await PublisherShop.findOneAndUpdate({guildId:req.guildId},{ $set:{enabled:!!b.enabled,categories:Array.isArray(b.categories)?b.categories:[],channels:Array.isArray(b.channels)?b.channels:[],rewardAmount:Number(b.rewardAmount)||25000,cooldownMs:Number(b.cooldownMs)||90000000,mentionMode:b.mentionMode||"everyone"}},{new:true,upsert:true}).lean();res.json({ok:true,config:cfg});}catch(e){res.status(500).json({error:e.message})}});
+app.post("/api/guild/rooms", requireAuth, requireGuild, async(req,res)=>{ if(!dbConnected)return res.status(503).json({error:"Database unavailable"}); try{const b=req.body||{};const cfg=await PremiumRoomConfig.findOneAndUpdate({guildId:req.guildId},{ $set:{emoji:Array.isArray(b.emoji)?b.emoji:[],emojiSources:Array.isArray(b.emojiSources)?b.emojiSources:[],sticker:Array.isArray(b.sticker)?b.sticker:[],stickerSources:Array.isArray(b.stickerSources)?b.stickerSources:[],outline:b.outline||{channels:[],image:null},autorec:b.autorec||{channels:[],emoji:null}}},{new:true,upsert:true}).lean();res.json({ok:true,config:cfg});}catch(e){res.status(500).json({error:e.message})}});
+app.post("/api/guild/tickets/panel", requireAuth, requireGuild, async(req,res)=>{ if(!dbConnected)return res.status(503).json({error:"Database unavailable"}); try{const b=req.body||{}; if(!b.name)return res.status(400).json({error:"اسم اللوحة مطلوب"}); const cfg=await TicketPanel.findOneAndUpdate({guildId:req.guildId,name:b.name},{ $set:{description:b.description||"",emoji:b.emoji||"🎫",image:b.image||null,thumbnail:b.thumbnail||null,color:Number(b.color)||5793266,messageStyle:b.messageStyle||"embed",categoryId:b.categoryId||null,supportRoleIds:Array.isArray(b.supportRoleIds)?b.supportRoleIds:[],mentionRoleIds:Array.isArray(b.mentionRoleIds)?b.mentionRoleIds:[],ticketNameFormat:b.ticketNameFormat||"ticket-{number}",openingMethod:b.openingMethod||"button",form:Array.isArray(b.form)?b.form:[],autoMessages:b.autoMessages||{},rolePermissions:Array.isArray(b.rolePermissions)?b.rolePermissions:[],enabled:b.enabled!==false,isQuick:!!b.isQuick,claimEnabled:b.claimEnabled!==false,claimPoints:Number(b.claimPoints)||0,topClaimEnabled:!!b.topClaimEnabled,topPointEnabled:!!b.topPointEnabled,transcriptEnabled:b.transcriptEnabled!==false,logChannelId:b.logChannelId||null,ticketPrefix:b.ticketPrefix||"t!",enabledCommands:Array.isArray(b.enabledCommands)?b.enabledCommands:[]}},{new:true,upsert:true}).lean();res.json({ok:true,panel:cfg});}catch(e){res.status(500).json({error:e.message})}});
+
 /* ---------- Controls (POST) ---------- */
 app.post("/api/guild/welcome", requireAuth, requireGuild, async (req, res) => {
   const guildId = req.guildId;
@@ -704,8 +781,58 @@ app.post("/api/daily/claim", requireAuth, async (req, res) => {
   }
 });
 
+app.get("/api/bot/info", requireAuth, async (req, res) => {
+  const [botUser, owner] = await Promise.all([
+    fetchBotUser(),
+    fetchDiscordUserById(BOT_OWNER_ID),
+  ]);
+  const guilds = await fetchBotGuilds();
+  res.json({
+    online: !!botUser,
+    bot: botUser ? {
+      id: botUser.id,
+      username: botUser.username,
+      globalName: botUser.global_name || botUser.username,
+      avatar: botUser.avatar
+        ? `https://cdn.discordapp.com/avatars/${botUser.id}/${botUser.avatar}.png?size=128`
+        : null,
+    } : null,
+    owner: {
+      id: BOT_OWNER_ID,
+      mention: `<@${BOT_OWNER_ID}>`,
+      username: owner?.username || null,
+      globalName: owner?.global_name || owner?.username || null,
+      avatar: owner?.avatar
+        ? `https://cdn.discordapp.com/avatars/${BOT_OWNER_ID}/${owner.avatar}.png?size=128`
+        : null,
+    },
+    guildCount: guilds.length,
+    database: dbConnected,
+  });
+});
+
+async function fetchBotUser() {
+  try {
+    const { data } = await axios.get(`${DISCORD_API}/users/@me`, {
+      headers: { Authorization: `Bot ${BOT_TOKEN}` },
+    });
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+app.get("/api/config/status", requireAuth, (req, res) => {
+  res.json(configStatus());
+});
+
 app.get("/api/check", (req, res) => {
-  res.json({ ok: true, dbConnected, botGuilds: [], demo: !dbConnected });
+  res.json({
+    ok: true,
+    authenticated: !!req.session?.user,
+    dbConnected,
+    demo: false,
+  });
 });
 
 function timeAgo(date) {

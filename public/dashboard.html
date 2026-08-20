@@ -8,6 +8,9 @@
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+  <div class="space-stars" aria-hidden="true"></div>
+  <div class="space-nebula nebula-one" aria-hidden="true"></div>
+  <div class="space-nebula nebula-two" aria-hidden="true"></div>
   <div class="app">
     <aside class="sidebar">
       <div class="sidebar-logo">
@@ -18,6 +21,12 @@
           <p class="brand">REVO <span class="brand-accent">BOT</span></p>
           <p class="brand-sub">مجتمعك، بإدارة أذكى</p>
         </div>
+      </div>
+
+      <div class="pro-project-chip">
+        <span class="pro-orbit"></span>
+        <span>REVO PRO MAX</span>
+        <b>LIVE</b>
       </div>
 
       <div class="sidebar-section">
@@ -83,6 +92,15 @@
       </div>
 
       <div class="sidebar-section">
+        <p class="sidebar-label">مركز الأنظمة</p>
+        <button class="sidebar-btn" data-section="control-center"><span>✦</span><span>مركز التحكم الكامل</span><span class="badge-pro">MAX</span></button>
+        <button class="sidebar-btn" data-section="functions"><span>⚙️</span><span>الوظائف والرتب</span></button>
+        <button class="sidebar-btn" data-section="slash"><span>⌘</span><span>Slash Commands</span></button>
+        <button class="sidebar-btn" data-section="moderation"><span>🛡️</span><span>الإدارة المتقدمة</span></button>
+        <button class="sidebar-btn" data-section="voice"><span>🔊</span><span>أنظمة الصوت</span></button>
+      </div>
+
+      <div class="sidebar-section">
         <p class="sidebar-label">أخرى</p>
         <button class="sidebar-btn" data-section="commands">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" x2="20" y1="19" y2="19"></line></svg>
@@ -121,6 +139,21 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" x2="16.65" y1="21" y2="16.65"></line></svg>
           <input type="text" placeholder="ابحث في لوحة التحكم..." id="searchInput">
         </div>
+        <div class="topbar-bot" id="botBanner" title="حالة Revo Bot">
+          <span class="bot-live-dot"></span>
+          <div class="bot-copy">
+            <span>REVO BOT</span>
+            <small id="botBannerStatus">جاري التحقق...</small>
+          </div>
+        </div>
+        <div class="topbar-owner" id="ownerBanner" title="صاحب البوت">
+          <div class="owner-crown">♛</div>
+          <div class="owner-copy">
+            <span class="owner-label">صاحب البوت</span>
+            <strong id="ownerName">—</strong>
+          </div>
+          <code id="ownerTag">&lt;@—&gt;</code>
+        </div>
         <div class="topbar-actions">
           <div class="guild-select-wrap">
             <select id="guildSelect" class="guild-select" title="اختر سيرفر">
@@ -153,7 +186,7 @@
               <div class="stat-box">
                 <p class="stat-label">رصيد Revo</p>
                 <p class="stat-value" id="userBalance">0</p>
-                <p class="stat-change positive">+ $3,319.02</p>
+                <p class="stat-change" id="balanceHint">رصيدك الحالي</p>
               </div>
               <div class="stat-box">
                 <p class="stat-label">المستوى</p>
@@ -164,12 +197,12 @@
               <div class="stat-box">
                 <p class="stat-label">الترتيب العالمي</p>
                 <p class="stat-value" id="userRank">#0</p>
-                <p class="stat-sub">أنت أعلى من 78% من المستخدمين</p>
+                <p class="stat-sub">ترتيبك حسب رصيدك</p>
               </div>
               <div class="stat-box">
                 <p class="stat-label">سيرفراتي</p>
                 <p class="stat-value" id="userGuilds">0</p>
-                <p class="stat-sub" id="totalMembers">إجمالي أعضائك</p>
+                <p class="stat-sub" id="totalMembers">السيرفرات التي يمكنك إدارتها</p>
               </div>
             </div>
 
@@ -187,14 +220,14 @@
                 <p class="daily-desc">استلم مكافأتك اليومية</p>
               </div>
             </div>
-            <p class="daily-sub">احصل على 500,000 كوينز كل 24 ساعة</p>
+            <p class="daily-sub">استلم مكافأتك اليومية كل 24 ساعة</p>
             <button class="daily-btn" id="claimDailyBtn">استلم المكافأة</button>
             <div class="countdown">
               <p class="countdown-label">الوقت المتبقي</p>
               <div class="countdown-timer">
-                <div class="countdown-box"><span id="cdHours">14</span><p>ساعة</p></div>
-                <div class="countdown-box"><span id="cdMinutes">32</span><p>دقيقة</p></div>
-                <div class="countdown-box"><span id="cdSeconds">45</span><p>ثانية</p></div>
+                <div class="countdown-box"><span id="cdHours">00</span><p>ساعة</p></div>
+                <div class="countdown-box"><span id="cdMinutes">00</span><p>دقيقة</p></div>
+                <div class="countdown-box"><span id="cdSeconds">00</span><p>ثانية</p></div>
               </div>
             </div>
           </div>
@@ -287,6 +320,24 @@
               </div>
               <a href="#" class="logs-link" id="logsLink">عرض السجلات</a>
             </div>
+
+            <div class="bot-owner-card">
+              <div class="bot-owner-avatar-wrap">
+                <img id="ownerAvatar" class="bot-owner-avatar" alt="مالك البوت">
+                <span class="owner-online-dot"></span>
+              </div>
+              <div class="bot-owner-main">
+                <div class="bot-owner-title">صاحب المشروع</div>
+                <div class="bot-owner-name" id="ownerNameCard">يتم التحميل...</div>
+                <div class="bot-owner-mention" id="ownerTagCard">&lt;@—&gt;</div>
+                <div class="bot-owner-project">المسؤول عن مشروع Revo Bot</div>
+              </div>
+              <div class="bot-project-meta">
+                <div><span>حالة البوت</span><strong id="botStatusText">—</strong></div>
+                <div><span>السيرفرات</span><strong id="botGuildCount">0</strong></div>
+                <div><span>قاعدة البيانات</span><strong id="dbStatusText">—</strong></div>
+              </div>
+            </div>
           </div>
 
         </div>
@@ -314,14 +365,14 @@
         <div class="panel">
           <h2 class="panel-title">المكافأة اليومية</h2>
           <div class="daily-card panel-daily">
-            <p class="daily-sub">احصل على 500,000 كوينز كل 24 ساعة</p>
+            <p class="daily-sub">استلم مكافأتك اليومية كل 24 ساعة</p>
             <button class="daily-btn" id="claimDailyBtn2">استلم المكافأة</button>
             <div class="countdown">
               <p class="countdown-label">الوقت المتبقي</p>
               <div class="countdown-timer">
-                <div class="countdown-box"><span id="cdHours2">14</span><p>ساعة</p></div>
-                <div class="countdown-box"><span id="cdMinutes2">32</span><p>دقيقة</p></div>
-                <div class="countdown-box"><span id="cdSeconds2">45</span><p>ثانية</p></div>
+                <div class="countdown-box"><span id="cdHours2">00</span><p>ساعة</p></div>
+                <div class="countdown-box"><span id="cdMinutes2">00</span><p>دقيقة</p></div>
+                <div class="countdown-box"><span id="cdSeconds2">00</span><p>ثانية</p></div>
               </div>
             </div>
           </div>
@@ -502,35 +553,43 @@
 
       <!-- Section: المتجر -->
       <section class="content-section" data-section="pro-shop">
-        <div class="panel">
-          <h2 class="panel-title">متجر المجتمع</h2>
-          <p class="hint">متجر البريميوم قريبًا (يتطلب اشتراك PRO).</p>
+        <div class="section-hero"><div><span class="eyebrow">REVO PRO</span><h2>متجر الناشرين</h2><p>تحكم كامل في المكافآت، القنوات، التصنيفات ونظام المنشن.</p></div><span class="hero-icon">🛍️</span></div>
+        <div class="pro-grid">
+          <div class="panel"><h3 class="panel-title">الإعداد الأساسي</h3><div class="settings-form"><label class="switch-row"><span>تفعيل المتجر</span><label class="switch"><input type="checkbox" id="publisherEnabled"><span class="slider"></span></label></label><label class="field"><span>مكافأة الناشر</span><input id="publisherReward" type="number" min="1"></label><label class="field"><span>مدة الانتظار بالساعة</span><input id="publisherCooldown" type="number" min="1"></label><label class="field"><span>وضع المنشن</span><select id="publisherMention"><option value="everyone">@everyone</option><option value="here">@here</option></select></label><button class="save-btn" id="savePublisher">حفظ الإعدادات</button></div></div>
+          <div class="panel"><h3 class="panel-title">إحصائيات المتجر</h3><div class="stats-grid compact"><div class="stat-metric"><span class="stat-metric-label">إجمالي المكافآت</span><strong id="publisherTotalRewards">0</strong></div><div class="stat-metric"><span class="stat-metric-label">إجمالي Revo</span><strong id="publisherTotalRevo">0</strong></div></div></div>
         </div>
       </section>
 
       <!-- Section: Room Systems -->
       <section class="content-section" data-section="room-systems">
-        <div class="panel">
-          <h2 class="panel-title">Room Systems</h2>
-          <p class="hint">أنظمة الغرف متاحة لعملاء PRO فقط.</p>
-        </div>
+        <div class="section-hero"><div><span class="eyebrow">PREMIUM ROOMS</span><h2>أنظمة الرومات</h2><p>Emoji • Sticker • Outline • Auto Reaction — إدارة مباشرة من لوحة واحدة.</p></div><span class="hero-icon">🛰️</span></div>
+        <div class="pro-grid"><div class="panel"><h3 class="panel-title">Emoji / Sticker</h3><label class="field"><span>رومات Emoji — IDs</span><input id="roomEmojiChannels" placeholder="123,456"></label><label class="field"><span>رومات Sticker — IDs</span><input id="roomStickerChannels" placeholder="123,456"></label><button class="save-btn" id="saveRooms">حفظ</button></div><div class="panel"><h3 class="panel-title">Outline / AutoRec</h3><label class="field"><span>رومات Outline</span><input id="roomOutlineChannels" placeholder="123,456"></label><label class="field"><span>صورة Outline</span><input id="roomOutlineImage" placeholder="https://..."></label><label class="field"><span>رومات AutoRec</span><input id="roomAutoChannels" placeholder="123,456"></label><label class="field"><span>Emoji AutoRec</span><input id="roomAutoEmoji" placeholder="😂"></label></div></div>
       </section>
 
       <!-- Section: الأوامر -->
       <section class="content-section" data-section="commands">
-        <div class="panel">
-          <h2 class="panel-title">الأوامر</h2>
-          <p class="hint">جميع أوامر البوت متاحة عبر Discord. استخدم ? للوصول السريع.</p>
-        </div>
+        <div class="section-hero"><div><span class="eyebrow">COMMAND CENTER</span><h2>كل أوامر Revo</h2><p>تم بناء القائمة من مشروع البوت نفسه — ابحث، صنّف، واعرف وظيفة كل أمر.</p></div><span class="hero-icon">⌘</span></div><div class="command-toolbar"><input id="commandSearch" placeholder="ابحث عن أمر مثل ban أو ticket..."><select id="commandCategory"><option value="all">كل الأقسام</option></select></div><div class="command-grid" id="commandGrid"></div>
       </section>
 
       <!-- Section: السجلات -->
       <section class="content-section" data-section="logs">
-        <div class="panel">
-          <h2 class="panel-title">سجلات البوت</h2>
-          <div class="control-list" id="logsList"></div>
-        </div>
+        <div class="section-hero"><div><span class="eyebrow">AUDIT CENTER</span><h2>السجلات</h2><p>تحكم في أحداث الإدارة، الحماية، التذاكر، الرتب والقنوات من مكان واحد.</p></div><span class="hero-icon">📜</span></div><div class="panel"><label class="field"><span>قناة السجل العامة</span><input id="globalLogChannel" placeholder="Channel ID"></label><div class="log-event-grid" id="logsList"></div><button class="save-btn" id="saveLogs">حفظ السجلات</button></div>
       </section>
+
+      <!-- Section: مركز التحكم الكامل -->
+      <section class="content-section" data-section="control-center"><div class="section-hero"><div><span class="eyebrow">REVO CONTROL CENTER</span><h2>كل شيء في مكان واحد</h2><p>واجهة موحدة لكل أنظمة البوت، مبنية على الوظائف الموجودة فعليًا في المشروع.</p></div><span class="hero-icon">✦</span></div><div class="system-catalog-grid" id="systemCatalog"></div></section>
+
+      <!-- Section: الوظائف -->
+      <section class="content-section" data-section="functions"><div class="section-hero"><div><span class="eyebrow">FUNCTIONS</span><h2>الوظائف والرتب</h2><p>ترقية • تخفيض • فصل • اختيار الرتب.</p></div><span class="hero-icon">⚙️</span></div><div class="panel"><div class="function-grid" id="functionGrid"></div><button class="save-btn" id="saveFunctions">حفظ الوظائف</button></div></section>
+
+      <!-- Section: Slash -->
+      <section class="content-section" data-section="slash"><div class="section-hero"><div><span class="eyebrow">SLASH COMMANDS</span><h2>إدارة أوامر السلاش</h2><p>تحكم في الأوامر المسجلة والمفعلة بدون لمس الكود.</p></div><span class="hero-icon">⌘</span></div><div class="panel"><div class="command-toggle-grid" id="slashGrid"></div><button class="save-btn" id="saveSlash">حفظ أوامر السلاش</button></div></section>
+
+      <!-- Section: moderation -->
+      <section class="content-section" data-section="moderation"><div class="section-hero"><div><span class="eyebrow">MODERATION</span><h2>الإدارة المتقدمة</h2><p>أدوات الإدارة الموجودة في Revo مع عرض سريع للأوامر.</p></div><span class="hero-icon">🛡️</span></div><div class="command-grid" id="moderationGrid"></div></section>
+
+      <!-- Section: voice -->
+      <section class="content-section" data-section="voice"><div class="section-hero"><div><span class="eyebrow">VOICE CONTROL</span><h2>أنظمة الصوت</h2><p>كل أوامر التحكم الصوتي الموجودة في المشروع.</p></div><span class="hero-icon">🔊</span></div><div class="command-grid" id="voiceGrid"></div></section>
 
       <!-- Section: الدعم -->
       <section class="content-section" data-section="support">

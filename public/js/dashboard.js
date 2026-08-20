@@ -2,6 +2,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initSidebar();
   initMobileMenu();
   initThemeToggle();
+  initSearch();
   initGuildSelection();
 });
 
@@ -47,7 +48,7 @@ async function initGuildSelection() {
 }
 
 async function loadAll() {
-  const [user, leaderboard, transfers, stats, shortcuts, welcome, protection, level, tickets, autoresponse] = await Promise.all([
+  const [user, leaderboard, transfers, stats, shortcuts, welcome, protection, level, tickets, autoresponse, botInfo] = await Promise.all([
     api(gurl('/api/user')),
     api(gurl('/api/leaderboard')),
     api(gurl('/api/transfers')),
@@ -58,6 +59,7 @@ async function loadAll() {
     api(gurl('/api/guild/level')),
     api(gurl('/api/guild/tickets')),
     api(gurl('/api/guild/autoresponse')),
+    api('/api/bot/info'),
   ]);
 
   if (user) renderUser(user);
@@ -70,6 +72,7 @@ async function loadAll() {
   if (level) renderLevel(level);
   if (tickets) renderTickets(tickets);
   if (autoresponse) renderAutoResponse(autoresponse);
+  if (botInfo) renderBotInfo(botInfo);
   startCountdown();
   initDailyClaim(user);
 }
@@ -96,7 +99,7 @@ function renderUser(data) {
   document.getElementById('userLevel').textContent = acc.level || 1;
   document.getElementById('userXp').textContent = `${Number(acc.xp || 0).toLocaleString('en')} / ${Number(acc.maxXp || 3000).toLocaleString('en')} XP`;
   document.getElementById('userRank').textContent = acc.globalRank ? '#' + Number(acc.globalRank).toLocaleString('en') : '—';
-  document.getElementById('userGuilds').textContent = (guilds?.length || 1).toLocaleString('en');
+  document.getElementById('userGuilds').textContent = (guilds?.length || 0).toLocaleString('en');
   const xpPercent = Math.min(100, ((acc.xp || 0) / (acc.maxXp || 3000)) * 100);
   const xpFill = document.querySelector('.xp-fill');
   if (xpFill) xpFill.style.width = xpPercent + '%';
@@ -125,7 +128,9 @@ function renderUser(data) {
   });
   dailyTarget = account?.nextDailyRewardAt ? new Date(account.nextDailyRewardAt).getTime() : null;
   updateDailyButtons();
-  if (!account && currentGuildId) showToast('لا يوجد حساب لك في هذا السيرفر بعد', true);
+  const panelBalance = document.getElementById('panelBalance');
+  if (panelBalance) panelBalance.textContent = formatBalance(acc.balance);
+  if (!account && currentGuildId) showToast('لا يوجد حساب مالي لك حتى الآن في هذا السيرفر', true);
 }
 
 function updateDailyButtons() {
@@ -151,8 +156,7 @@ function renderLeaderboard(data) {
 
 function renderTransfers(data) {
   if (!data) return;
-  const list = document.getElementById('transferList');
-  list.innerHTML = data.map(t => `
+  const render = (items) => items.map(t => `
     <div class="transfer-item">
       <div class="transfer-avatar">${t.fromInitials}</div>
       <div class="transfer-info">
@@ -165,6 +169,10 @@ function renderTransfers(data) {
       <span class="transfer-time">${t.timeAgo}</span>
     </div>
   `).join('') || '<p class="empty-note">لا توجد تحويلات بعد</p>';
+  ['transferList','panelTransfers','historyList'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = render(data);
+  });
 }
 
 function renderShortcuts(data) {
@@ -428,6 +436,43 @@ function initDailyClaim(user) {
   });
 }
 
+function renderBotInfo(data) {
+  const ownerName = data.owner?.globalName || data.owner?.username || 'مالك Revo';
+  const ownerTag = data.owner?.username ? `@${data.owner.username}` : data.owner?.mention || '';
+  const ownerNameEl = document.getElementById('ownerName');
+  const ownerTagEl = document.getElementById('ownerTag');
+  const ownerAvatar = document.getElementById('ownerAvatar');
+  const ownerNameCard = document.getElementById('ownerNameCard');
+  const ownerTagCard = document.getElementById('ownerTagCard');
+  const botStatus = document.getElementById('botStatusText');
+  const botGuildCount = document.getElementById('botGuildCount');
+  const botBannerStatus = document.getElementById('botBannerStatus');
+  if (ownerNameEl) ownerNameEl.textContent = ownerName;
+  if (ownerTagEl) ownerTagEl.textContent = data.owner?.mention || ownerTag;
+  if (ownerAvatar && data.owner?.avatar) ownerAvatar.src = data.owner.avatar;
+  if (ownerNameCard) ownerNameCard.textContent = ownerName;
+  if (ownerTagCard) ownerTagCard.textContent = data.owner?.mention || ownerTag;
+  if (botStatus) botStatus.textContent = data.online ? 'متصل ويعمل' : 'غير متصل';
+  if (botBannerStatus) botBannerStatus.textContent = data.online ? 'متصل • يعمل الآن' : 'غير متصل • تحقق من البوت';
+  const botName = data.bot?.globalName || data.bot?.username || 'REVO BOT';
+  document.title = `${botName} — لوحة التحكم`;
+  if (botGuildCount) botGuildCount.textContent = Number(data.guildCount || 0).toLocaleString('en');
+  const dbStatus = document.getElementById('dbStatusText');
+  if (dbStatus) dbStatus.textContent = data.database ? 'متصلة' : 'غير متصلة';
+}
+
+function initSearch() {
+  const input = document.getElementById('searchInput');
+  if (!input) return;
+  input.addEventListener('input', () => {
+    const q = input.value.trim().toLowerCase();
+    document.querySelectorAll('.sidebar-btn').forEach(btn => {
+      const label = btn.textContent.trim().toLowerCase();
+      btn.style.display = !q || label.includes(q) ? '' : 'none';
+    });
+  });
+}
+
 function initSidebar() {
   const btns = document.querySelectorAll('.sidebar-btn');
   const sections = document.querySelectorAll('.content-section');
@@ -472,3 +517,107 @@ function showToast(msg, isError) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => toast.className = '', 2500);
 }
+/* ===== REVO PRO MAX — Full Bot Control Layer ===== */
+let botCatalog = { commands: [], systems: [] };
+let fullConfig = {};
+let guildResources = { channels: [], roles: [] };
+
+async function loadProMaxData() {
+  const [catalog, config, resources] = await Promise.all([
+    api('/api/bot/catalog'),
+    api(gurl('/api/guild/full-config')),
+    api(gurl('/api/guild/resources')),
+  ]);
+  if (catalog) { botCatalog = catalog; renderCommandCenter(catalog); renderCommandGroups(catalog); }
+  if (config) { fullConfig = config; renderAdvancedConfig(config); }
+  if (resources) guildResources = resources;
+}
+
+function renderCommandCenter(data) {
+  const grid = document.getElementById('commandGrid');
+  const cat = document.getElementById('commandCategory');
+  const search = document.getElementById('commandSearch');
+  if (!grid) return;
+  const cats = [...new Set(data.commands.map(c => c.category))];
+  if (cat) cat.innerHTML = '<option value="all">كل الأقسام</option>' + cats.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+  const render = () => {
+    const q = (search?.value || '').toLowerCase().trim();
+    const c = cat?.value || 'all';
+    const list = data.commands.filter(x => (c === 'all' || x.category === c) && (!q || x.name.toLowerCase().includes(q) || x.description.toLowerCase().includes(q)));
+    grid.innerHTML = list.map(x => `<div class="command-card"><div class="command-icon">/</div><div><strong>${escapeHtml(x.name)}</strong><span>${escapeHtml(x.category)}</span><p>${escapeHtml(x.description)}</p></div></div>`).join('') || '<div class="empty-state">لا توجد نتائج</div>';
+  };
+  search?.addEventListener('input', render); cat?.addEventListener('change', render); render();
+}
+
+function renderCommandGroups(data) {
+  const map = { moderation: ['إدارة'], voice: ['الصوت'] };
+  for (const [id, cats] of Object.entries(map)) {
+    const el = document.getElementById(id + 'Grid'); if (!el) continue;
+    el.innerHTML = data.commands.filter(c => cats.includes(c.category)).map(x => `<div class="command-card"><div class="command-icon">${id === 'voice' ? '🔊' : '🛡️'}</div><div><strong>/${escapeHtml(x.name)}</strong><span>${escapeHtml(x.category)}</span><p>${escapeHtml(x.description)}</p></div></div>`).join('');
+  }
+}
+
+function renderAdvancedConfig(cfg) {
+  const f = cfg.functionConfig || {};
+  const fg = document.getElementById('functionGrid');
+  if (fg) {
+    const labels = { promotion:'ترقية', demotion:'تخفيض', separation:'فصل', roleSelector:'اختيار الرتبة' };
+    fg.innerHTML = Object.entries(labels).map(([k,v]) => `<label class="switch-row"><span>${v}</span><label class="switch"><input type="checkbox" data-fn="${k}" ${f.enabled?.[k] !== false ? 'checked':''}><span class="slider"></span></label></label>`).join('');
+  }
+  const sl = cfg.slash || {};
+  const sg = document.getElementById('slashGrid');
+  if (sg) sg.innerHTML = botCatalog.commands.filter(c => c.name !== 'setup-system').slice(0, 70).map(c => `<label class="switch-row"><span>/${escapeHtml(c.name)}</span><label class="switch"><input type="checkbox" data-slash="${escapeHtml(c.name)}" ${(sl.enabledCommands||[]).includes(c.name) ? 'checked':''}><span class="slider"></span></label></label>`).join('');
+  const pub = cfg.publisher || {};
+  const pe = document.getElementById('publisherEnabled'); if (pe) pe.checked = !!pub.enabled;
+  const pr = document.getElementById('publisherReward'); if (pr) pr.value = pub.rewardAmount || 25000;
+  const pc = document.getElementById('publisherCooldown'); if (pc) pc.value = Math.round((pub.cooldownMs || 90000000)/3600000);
+  const pm = document.getElementById('publisherMention'); if (pm) pm.value = pub.mentionMode || 'everyone';
+  document.getElementById('publisherTotalRewards')?.replaceChildren(document.createTextNode(Number(pub.statistics?.totalRewards||0).toLocaleString('en')));
+  document.getElementById('publisherTotalRevo')?.replaceChildren(document.createTextNode(Number(pub.statistics?.totalRevo||0).toLocaleString('en')));
+  const rooms = cfg.rooms || {};
+  const set = (id, arr) => { const e=document.getElementById(id); if(e)e.value=(arr||[]).join(','); };
+  set('roomEmojiChannels', rooms.emoji); set('roomStickerChannels', rooms.sticker); set('roomOutlineChannels', rooms.outline?.channels); set('roomAutoChannels', rooms.autorec?.channels);
+  const oi=document.getElementById('roomOutlineImage'); if(oi)oi.value=rooms.outline?.image||'';
+  const oe=document.getElementById('roomAutoEmoji'); if(oe)oe.value=rooms.autorec?.emoji||'';
+  const logs=cfg.logs||{}; const gl=document.getElementById('globalLogChannel'); if(gl)gl.value=logs.globalChannelId||'';
+  const ll=document.getElementById('logsList'); if(ll){ const events=logs.events||{}; const names=Object.keys(events).length?Object.keys(events):['ban','kick','warn','member_join','member_leave','role_create','role_delete','channel_create','channel_delete','message_delete','message_edit','voice_join','voice_leave','protection_violation','ticket_open','ticket_close']; ll.innerHTML=names.map(k=>`<label class="switch-row log-row"><span>${escapeHtml(k)}</span><label class="switch"><input type="checkbox" data-log="${escapeHtml(k)}" ${events[k]?.enabled !== false?'checked':''}><span class="slider"></span></label></label>`).join(''); }
+}
+
+function escapeHtml(v){ return String(v??'').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
+function ids(v){ return String(v||'').split(',').map(x=>x.trim()).filter(Boolean); }
+
+async function saveAdvancedControls() {
+  const fn = {};
+  document.querySelectorAll('[data-fn]').forEach(i => fn[i.dataset.fn]=i.checked);
+  if (Object.keys(fn).length) await api(gurl('/api/guild/function'), {method:'POST', body:JSON.stringify({enabled:fn,allowedRoles:fullConfig.functionConfig?.allowedRoles||{},roleCategories:fullConfig.functionConfig?.roleCategories||[]})});
+  const enabledCommands=[]; document.querySelectorAll('[data-slash]:checked').forEach(i=>enabledCommands.push(i.dataset.slash));
+  await api(gurl('/api/guild/slash'), {method:'POST',body:JSON.stringify({enabledCommands,registeredCommands:fullConfig.slash?.registeredCommands||[],comeSlashEnabled:!!fullConfig.slash?.comeSlashEnabled,comePrefixEnabled:!!fullConfig.slash?.comePrefixEnabled})});
+  showToast('تم حفظ أنظمة التحكم المتقدمة');
+}
+
+document.addEventListener('click', async e => {
+  if (e.target.closest('#saveFunctions') || e.target.closest('#saveSlash')) await saveAdvancedControls();
+  if (e.target.closest('#savePublisher')) {
+    const res=await api(gurl('/api/guild/publisher'),{method:'POST',body:JSON.stringify({enabled:document.getElementById('publisherEnabled')?.checked,rewardAmount:+document.getElementById('publisherReward')?.value||25000,cooldownMs:(+document.getElementById('publisherCooldown')?.value||25)*3600000,mentionMode:document.getElementById('publisherMention')?.value,categories:fullConfig.publisher?.categories||[],channels:fullConfig.publisher?.channels||[]})});
+    showToast(res?.ok?'تم حفظ متجر الناشرين':'تعذر الحفظ',!res?.ok);
+  }
+  if (e.target.closest('#saveRooms')) {
+    const res=await api(gurl('/api/guild/rooms'),{method:'POST',body:JSON.stringify({emoji:ids(document.getElementById('roomEmojiChannels')?.value),sticker:ids(document.getElementById('roomStickerChannels')?.value),outline:{channels:ids(document.getElementById('roomOutlineChannels')?.value),image:document.getElementById('roomOutlineImage')?.value||null},autorec:{channels:ids(document.getElementById('roomAutoChannels')?.value),emoji:document.getElementById('roomAutoEmoji')?.value||null}})});
+    showToast(res?.ok?'تم حفظ أنظمة الرومات':'تعذر الحفظ',!res?.ok);
+  }
+  if (e.target.closest('#saveLogs')) {
+    const events={}; document.querySelectorAll('[data-log]').forEach(i=>events[i.dataset.log]={enabled:i.checked});
+    const res=await api(gurl('/api/guild/logs'),{method:'POST',body:JSON.stringify({globalChannelId:document.getElementById('globalLogChannel')?.value.trim()||null,events})});
+    showToast(res?.ok?'تم حفظ إعدادات السجلات':'تعذر الحفظ',!res?.ok);
+  }
+});
+
+const oldLoadAll = loadAll;
+loadAll = async function(){ await oldLoadAll(); await loadProMaxData(); };
+
+function renderSystemCatalog(data){
+  const el=document.getElementById('systemCatalog'); if(!el) return;
+  el.innerHTML=(data.systems||[]).map(s=>`<div class="system-card"><div class="system-card-head"><span class="system-card-icon">${s.icon}</span><div><h3>${escapeHtml(s.name)}</h3><p>${s.items.length} أدوات مرتبطة</p></div></div><div class="system-card-tags">${s.items.map(x=>`<span>/${escapeHtml(x)}</span>`).join('')}</div></div>`).join('');
+}
+const oldRenderCommandCenter = renderCommandCenter;
+renderCommandCenter = function(data){ oldRenderCommandCenter(data); renderSystemCatalog(data); };
